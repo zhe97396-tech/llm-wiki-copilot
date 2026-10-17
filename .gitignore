@@ -1,0 +1,34 @@
+# ── 你的知识库数据（引擎与数据分离：数据默认不在此仓库）──
+vault/
+data/
+config.yaml
+.env
+*.local
+
+# ── 生成的索引与缓存 ──
+.llm-wiki/
+*.db
+*.db-wal
+*.db-shm
+# demo 数据需要入库，单独放行
+!demo/**
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# ── 第三方工具克隆位置（引导安装，不进本仓库）──
+integrations/chubbyskills/
+integrations/_third_party/
+
+# ── Obsidian / 编辑器 / 系统 ──
+.obsidian/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

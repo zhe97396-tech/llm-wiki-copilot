@@ -1,0 +1,16 @@
+# llm-wiki-copilot 核心依赖
+# 注意：全部为本地运行所需，无需任何在线 API 即可完成
+# 编译 → 检索 → 带读 → 沉淀 的完整链路（LLM 相关步骤为可选增强）
+
+# 向量库与检索（#index / #search / #ask / #bridge）
+zvec>=0.5.1             # Apache-2.0, Alibaba —— 向量库（含 jieba FTS）
+fastembed>=0.8.0        # Apache-2.0, Qdrant —— 本地 ONNX 向量化（首次自动下载 ~241MB 模型）
+jieba>=0.42.1           # MIT —— 中文分词（FTS 索引）
+
+# 格式转换（#ingest 的 convert.py）
+markitdown>=0.1.5       # MIT, Microsoft —— PDF/DOCX/PPTX/XLSX/EPUB/HTML → Markdown
+pytesseract>=0.3.13     # 图片 OCR（需要系统安装 Tesseract，可选）
+
+# 基础设施
+PyYAML>=6.0
+requests>=2.31

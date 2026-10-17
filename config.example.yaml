@@ -1,0 +1,75 @@
+# llm-wiki-copilot 配置模板
+# ─────────────────────────────────────────────────────────
+# 安装器（install.ps1 / install.sh）会交互式生成 config.yaml，
+# 本文件是模板与全部可配置项的说明。
+# ─────────────────────────────────────────────────────────
+
+# ── 数据目录（引擎与数据分离）─────────────────────────────
+# 留空 = 引擎同级的 ./vault
+# 指向你希望 Obsidian 打开的知识库目录（不要指向引擎目录本身）
+data_root: ""
+
+# ── 知识库定位 ────────────────────────────────────────────
+# 编译时注入上下文，帮 AI 判断什么是"相关内容"。
+# setup 向导会问你三个问题并写入 <data_root>/purpose.md
+purpose_file: "purpose.md"
+
+# ── 分类池 ────────────────────────────────────────────────
+# 编译时把总结页路由到 wiki/summaries/<分类>/。
+# 按你的领域自由增删；health.py 会校验 YAML 与目录一致性。
+categories:
+  - 通用
+  - 方法论
+  - 工具与技术
+  - 个人成长
+
+# ── LLM（可选）────────────────────────────────────────────
+# 用于：英文文档翻译、GitHub Stars 中文标签与分类。
+# 不填 → 这些可选步骤自动跳过（核心编译/检索/带读不依赖 LLM API）。
+# 任何 OpenAI 兼容端点都可以（OpenAI / DeepSeek / 本地 Ollama / 网关…）
+llm:
+  base_url: ""          # 例：https://api.deepseek.com/v1
+  api_key: ""           # 或用环境变量 LLM_API_KEY
+  model: ""             # 例：deepseek-chat
+
+# ── 路径覆盖（留空自动探测）───────────────────────────────
+paths:
+  tesseract: ""         # Tesseract OCR 可执行文件；留空探测系统 PATH 与默认安装位置
+  fastembed_cache: ""   # 留空 = <data_root>/.llm-wiki/fastembed_cache
+  python: ""            # 留空 = 项目内 .venv（Windows: .venv/Scripts/python.exe）
+
+# ── 可选集成（默认全部关闭）───────────────────────────────
+# 采集层依赖第三方工具与你的平台账号，按需开启。
+# 每个集成的详细安装与授权步骤见 docs/integrations.md
+integrations:
+  # GitHub Stars 同步（#stars）
+  github_stars:
+    enabled: false
+    username: ""            # 你的 GitHub 用户名
+    token_env: GITHUB_TOKEN # 只读公开 star 无需 token；提高速率限制时配置
+
+  # 抖音视频转录（我们自制的脚本，依赖 funasr + SenseVoice 模型 + ffmpeg）
+  douyin:
+    enabled: false
+    transcribe_script: ""   # 例：<config.integrations.douyin.python 所在环境>/scripts/douyin_transcribe.py
+    python: ""              # asr-env 的 python.exe（装了 funasr/torch 的那个）
+
+  # Chubby Skills（B站/公众号/X/小红书等平台的抓取与转录）
+  # 第三方项目，MIT，安装方式见其仓库：https://github.com/chubbyguan/chubbyskills
+  chubby:
+    enabled: false
+    path: ""                # 克隆位置
+    python: ""
+    cookie_xhs: ""          # 小红书登录态（可选）
+
+  # OpenCLI（8 平台搜索）
+  # 第三方项目，Apache-2.0：https://github.com/jackwener/opencli
+  opencli:
+    enabled: false
+    command: "opencli"      # 或填绝对路径
+
+  # 飞书收集管道（需要你自建多维表格 + 云端工作流，见 docs/integrations.md）
+  feishu:
+    enabled: false
+    cli_profile: ""
+    ingest_dir: ""          # 表格抓取内容落地的 INBOX 目录
