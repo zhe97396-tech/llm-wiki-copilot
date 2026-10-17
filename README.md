@@ -118,7 +118,7 @@
 ### 1. 安装（约 3 分钟）
 
 ```bash
-git clone https://github.com/<you>/llm-wiki-copilot.git
+git clone https://github.com/zhe97396-tech/llm-wiki-copilot.git
 cd llm-wiki-copilot
 
 # Windows
