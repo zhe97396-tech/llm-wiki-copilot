@@ -340,27 +340,24 @@ graph TB
 ```mermaid
 graph TB
     subgraph 指令系统["指令系统（commands/ 目录）"]
-        CMD["system/commands/<br/>13个指令独立文件"]
+        CMD["system/commands/<br/>12个指令独立文件"]
         SKILL["system/SKILL.md<br/>指令索引"]
         CMD --> SKILL
     end
 
     subgraph 平台入口["平台入口文件（薄路由层）"]
-        CLAUDE["CLAUDE.md<br/>Hermes / Claude Code"]
-        AGENTS["AGENTS.md<br/>Codex / OpenCode"]
-        GEMINI["GEMINI.md<br/>Gemini CLI"]
+        CLAUDE["CLAUDE.md<br/>Claude Code 及兼容约定"]
+        AGENTS["AGENTS.md<br/>Codex / OpenCode / 其它"]
     end
 
     subgraph Adapter["Adapter 构建系统"]
-        BUILD["scripts/build_adapters.py<br/>从1份源自动生成3个平台入口"]
+        BUILD["scripts/build_adapters.py<br/>1份源 → 入口文件 + 各 agent 原生斜杠命令"]
     end
 
     SKILL --> CLAUDE
     SKILL --> AGENTS
-    SKILL --> GEMINI
     BUILD --> CLAUDE
     BUILD --> AGENTS
-    BUILD --> GEMINI
 ```
 
 **人话版**：

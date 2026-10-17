@@ -704,17 +704,29 @@ python scripts/convert.py --inbox
 
 ## 十三、平台适配
 
-当前支持 3 个 AI Agent 平台：
+入口文件有 2 个（内容一致，只是对应不同 agent 的约定），另外可选生成各 agent 的原生斜杠命令：
 
-| 平台 | 入口文件 | Agent |
-|------|---------|-------|
-| Hermes / Claude Code | `CLAUDE.md` | 当前使用 |
-| Codex / OpenCode | `AGENTS.md` | 备用 |
-| Gemini CLI | `GEMINI.md` | 备用 |
+| 入口文件 | 对应 agent |
+|------|---------|
+| `CLAUDE.md` | Claude Code 及兼容约定（Cursor / Windsurf / Hermes 等） |
+| `AGENTS.md` | Codex CLI / OpenCode / 其它遵循 AGENTS.md 约定的 agent |
+
+**原生斜杠命令**（可选，与 `#指令` 完全等价）：默认给 Claude Code / OpenCode / pi 三个目标，
+生成哪些由 `config.yaml` 的 `adapters.slash` 决定 —— 想支持别的 agent，查清它的约定目录加一行即可。
+
+| Agent | 命令目录（在你的知识库目录下） |
+|---|---|
+| Claude Code | `.claude/commands/` |
+| OpenCode | `.opencode/commands/` |
+| pi | `.pi/prompts/` |
+| 任意自定义 | 在 `config.yaml` 里指定 `dir:` |
+
+> 已知无法通用的：Codex CLI（自定义命令 0.117.0 已移除，官方要求改用 skills）、
+> Gemini CLI（已被 Antigravity CLI 取代）、DSH（plugin 机制）—— 这几个用 `#指令` 即可。
 
 **改指令**：只改 `system/commands/xxx.md` 一个文件，所有平台自动生效。
 
-**重新生成入口文件**：
+**重新生成入口文件与命令**：
 ```bash
 python scripts/build_adapters.py
 ```

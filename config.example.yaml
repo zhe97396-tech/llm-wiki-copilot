@@ -32,6 +32,17 @@ llm:
   api_key: ""           # 或用环境变量 LLM_API_KEY
   model: ""             # 例：deepseek-chat
 
+# ── Agent 适配（可选）────────────────────────────────────
+# 生成哪些 agent 的原生斜杠命令（与 #指令 等价）。
+# 内置预设：claude / opencode / pi
+# 想支持别的 agent？查清它的「约定目录」后加一行自定义即可。
+adapters:
+  slash: [claude, opencode, pi]
+  # slash:
+  #   - claude
+  #   - dir: ".myagent/prompts"     # 相对 data_root
+  #     name: myagent
+
 # ── 路径覆盖（留空自动探测）───────────────────────────────
 paths:
   tesseract: ""         # Tesseract OCR 可执行文件；留空探测系统 PATH 与默认安装位置

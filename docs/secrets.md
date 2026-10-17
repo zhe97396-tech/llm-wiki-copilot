@@ -65,7 +65,7 @@ llm:
 | `config.yaml`、`.env`、`*.local` 都在 `.gitignore` 里 | `cat .gitignore` |
 | 配置模板里只有空占位符，没有任何真实值 | `grep -i "key\|token\|cookie" config.example.yaml` |
 | **代码从不打印密钥值** —— 自检只显示是否设置与长度 | `python scripts/llm_api.py` → `api_key: SET(len=51)` 或 `EMPTY` |
-| 生成的入口文件（CLAUDE.md 等）与斜杠命令文件里**不含**密钥 | `grep -i "api_key" CLAUDE.md AGENTS.md GEMINI.md` |
+| 生成的入口文件（CLAUDE.md / AGENTS.md）与斜杠命令文件里**不含**密钥 | `grep -i "api_key" CLAUDE.md AGENTS.md` |
 | 缺密钥时优雅跳过（不是崩溃） | 不配任何 key 直接跑 `#ingest`，看日志 |
 | 操作日志（`wiki_log.md`）只记操作与时间，不记配置 | 打开看一眼 |
 

@@ -41,25 +41,28 @@ PLATFORMS = {
         "agent_name": "Codex CLI / OpenCode",
         "intro": "你正在通过 **Codex CLI / OpenCode** 运行本知识副驾。",
     },
-    "gemini": {
-        "filename": "GEMINI.md",
-        "agent_name": "Gemini CLI",
-        "intro": "你正在通过 **Gemini CLI** 运行本知识副驾。",
-    },
 }
 
 # ── 平台原生命令（斜杠命令）──────────────────────────────────────────
-# 各平台机制核实结果（2026-10）：
-#   Claude Code  .claude/commands/<name>.md    → /<name>          ✅ 活跃
-#   Gemini CLI   .gemini/commands/<name>.toml  → /<name>          ✅ 活跃（TOML 格式）
-#   Codex CLI    ~/.codex/prompts/<name>.md    → /prompts:<name>  ❌ 0.117.0 起已移除，官方要求改用 skills
+# 设计原则：**不硬编码平台清单**。下面是已核实的预设；用户可在 config.yaml 的
+# adapters.slash 里增删，或给一个自定义目录来支持任意 agent。
 #
-# 命令文件必须写在 data_root（用户工作目录）：Claude Code 只认工作目录下的
-# .claude/commands/，写在引擎目录不会被加载。
+# 已核实（2026-10）—— 都属「工作目录 + 约定目录 + Markdown」这一族：
+#   Claude Code   .claude/commands/<name>.md     → /<name>
+#   OpenCode      .opencode/commands/<name>.md   → /<name>
+#   pi            .pi/prompts/<name>.md          → /<name>
+#
+# 未能通用化的（如实标注，不硬编码）：
+#   Codex CLI     自定义命令已于 0.117.0 移除，官方要求改用 skills
+#   Gemini CLI    已被 Antigravity CLI 取代（2026-06）
+#   DSH           走 plugin 机制（不是「目录 + Markdown」），需单独适配
+#
+# 这些 agent 只认「当前工作目录」下的约定目录，所以命令要生成到 data_root。
 
-SLASH_TARGETS = {
-    "claude": {"rel": Path(".claude") / "commands", "ext": ".md"},
-    "gemini": {"rel": Path(".gemini") / "commands", "ext": ".toml"},
+SLASH_PRESETS = {
+    "claude":   {"dir": ".claude/commands",   "ext": ".md"},
+    "opencode": {"dir": ".opencode/commands", "ext": ".md"},
+    "pi":       {"dir": ".pi/prompts",        "ext": ".md"},
 }
 
 CLAUDE_COMMAND = """---
@@ -74,19 +77,6 @@ description: {desc}
 
 用户附加说明：$ARGUMENTS
 """
-
-GEMINI_COMMAND = """description = "{desc}"
-prompt = \"\"\"
-执行知识副驾的 `#{name}` 流程。
-
-1. 读取指令定义文件：`{engine}/system/commands/{name}.md`（数据目录由 config.yaml 的 data_root 指定）
-2. 严格按该文件执行，不要凭记忆简化步骤
-3. 第一行打印：`[⚡系统拦截：正在严格执行 #{name} 流程...]`
-
-{{{{args}}}}
-\"\"\"
-"""
-
 
 def read_command_meta() -> list:
     """从 system/commands/*.md 的 frontmatter 读出 (name, description)。"""
@@ -104,24 +94,66 @@ def read_command_meta() -> list:
     return out
 
 
+def resolve_slash_targets() -> list:
+    """解析要生成哪些目标的命令。
+
+    优先级：config.yaml 的 `adapters.slash` > 内置预设 `SLASH_PRESETS`。
+
+    配置示例（config.yaml）：
+        adapters:
+          slash: [claude, opencode, pi]        # 用预设
+          # 或自定义任意 agent（只要你查清它的目录约定）：
+          # slash:
+          #   - dir: ".myagent/prompts"          # 相对 data_root
+          #     name: myagent
+    """
+    try:
+        from config import get as _cfg_get
+        cfg = _cfg_get("adapters.slash", None)
+    except Exception:
+        cfg = None
+
+    items = cfg if isinstance(cfg, list) and cfg else list(SLASH_PRESETS)
+    out = []
+    for it in items:
+        if isinstance(it, str):
+            if it in SLASH_PRESETS:
+                spec = dict(SLASH_PRESETS[it])
+                spec["name"] = it
+            else:
+                spec = {"name": it, "dir": f".{it}/commands", "ext": ".md"}
+        elif isinstance(it, dict) and it.get("dir"):
+            spec = {"name": it.get("name") or Path(it["dir"]).name,
+                    "dir": it["dir"], "ext": it.get("ext", ".md")}
+        else:
+            continue
+        out.append(spec)
+    return out
+
+
 def build_slash_commands(dry_run: bool = False) -> None:
-    """生成各平台原生命令文件到 data_root/.<platform>/commands/。"""
+    """生成原生斜杠命令到 data_root 下各目标的约定目录。"""
     root = _data_root()
     engine = REPO_ROOT.as_posix()
     cmds = read_command_meta()
-    print(f"\n  📁 斜杠命令 → {root}")
-    for platform, cfg in SLASH_TARGETS.items():
-        tpl = CLAUDE_COMMAND if platform == "claude" else GEMINI_COMMAND
-        target_dir = root / cfg["rel"]
+    targets = resolve_slash_targets()
+
+    print("")
+    print(f"  📁 斜杠命令 → {root}")
+    if not targets:
+        print("     （config.yaml 的 adapters.slash 为空，跳过）")
+        return
+    for tgt in targets:
+        target_dir = root / tgt["dir"]
         if dry_run:
-            print(f"     [{platform}] {len(cmds)} 个 → {target_dir}")
+            print(f"     [{tgt['name']}] {len(cmds)} 个 → {target_dir}")
             continue
         target_dir.mkdir(parents=True, exist_ok=True)
         for name, desc in cmds:
-            content = tpl.format(name=name, desc=desc, engine=engine)
-            write_file(target_dir / f"{name}{cfg['ext']}", content)
-        print(f"     ✅ [{platform}] {len(cmds)} 个 → {target_dir}")
-    print("     ℹ Codex CLI 已移除自定义命令（0.117.0），请用 skills 或 `#` 触发")
+            content = CLAUDE_COMMAND.format(name=name, desc=desc, engine=engine)
+            write_file(target_dir / f"{name}{tgt['ext']}", content)
+        print(f"     ✅ [{tgt['name']}] {len(cmds)} 个 → {target_dir}")
+    print("     ℹ 想支持别的 agent？在 config.yaml 的 adapters.slash 里加一行即可")
 
 
 # ── Template (2026-08-01 同步: 15指令 + Step1-9编译流程 + RAG脚本清单) ──
@@ -165,18 +197,34 @@ TEMPLATE = """# LLM Wiki 知识副驾
 3. 读取 `system/commands/[指令名].md` 获取详细执行步骤
 4. 回复第一行打印：`[⚡系统拦截：正在严格执行 #xxx 流程...]`
 
-## 斜杠命令（各平台原生入口）
+## 斜杠命令（原生入口）
 
-本项目为 **Claude Code** 与 **Gemini CLI** 生成了原生命令，与 `#指令` 完全等价：
+除 `#指令` 外，`scripts/build_adapters.py` 会为各 agent 生成**原生斜杠命令**，两者完全等价：
 
-| 平台 | 命令位置 | 调用 |
+| Agent | 命令位置（都在 `data_root` 下） | 调用 |
 |---|---|---|
-| Claude Code | `<data_root>/.claude/commands/<name>.md` | `/<name>` |
-| Gemini CLI | `<data_root>/.gemini/commands/<name>.toml` | `/<name>` |
-| Codex CLI | ——（自定义命令已在 0.117.0 移除） | 用 `#指令` 或 skills |
+| Claude Code | `.claude/commands/<name>.md` | `/<name>` |
+| OpenCode | `.opencode/commands/<name>.md` | `/<name>` |
+| pi | `.pi/prompts/<name>.md` | `/<name>` |
+| 其他任意 agent | 见下（可自行扩展） | 用 `#指令`，或按需扩展 |
+
+**不限于上面的清单** —— 生成哪些目标由 `config.yaml` 决定：
+
+```yaml
+adapters:
+  slash: [claude, opencode, pi]        # 用预设
+  # 或给任意 agent 加自定义目录（只要你查清它的约定目录）：
+  # slash:
+  #   - dir: ".myagent/prompts"
+  #     name: myagent
+```
+
+> 未通用化的：**Codex CLI**（自定义命令 0.117.0 已移除，官方要求改用 skills）、
+> **Gemini CLI**（已被 Antigravity CLI 取代）、**DSH**（plugin 机制，非目录约定）——
+> 这三个用 `#指令` 即可，功能不受影响。
 
 12 个命令与 12 个 `#指令` 一一对应。命令文件只是**转发层**：正文指向
-`system/commands/<name>.md`，真正的步骤定义只有一份，不会产生两份真相。
+`system/commands/<name>.md`，真正的步骤定义只有一份。
 
 重新生成：`python scripts/build_adapters.py`
 

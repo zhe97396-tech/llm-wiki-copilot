@@ -35,7 +35,7 @@
 
 | ✅ 它是 | ❌ 它不是 |
 |---|---|
-| 给 Claude Code / Codex / Cursor / Gemini CLI 用的**指令包 + 脚本** | 独立 App（没有 GUI，也不需要） |
+| 给 Claude Code / Codex / OpenCode / pi / Cursor 等 agent 用的**指令包 + 脚本** | 独立 App（没有 GUI，也不需要） |
 | 本地优先：向量检索用本地 ONNX，**零 API 也能跑** | 云服务（不上传任何数据） |
 | 纯 Markdown（Obsidian 可读，纯文本可迁移） | 又一个笔记软件（它不替代 Obsidian，是它的外挂大脑） |
 | 对 AI Agent 的一种**用法约定**（12 个 `#指令` + 原生斜杠命令） | 通用 AI 聊天客户端 |
@@ -184,16 +184,32 @@ python -m venv .venv
 | `#index` | `#索引` | 向量索引管理（增量/全量/重建/统计） |
 | `#archive` | `#冷宫` | 断舍离：标记归档，移出待处理 |
 
-### 斜杠命令：各平台原生入口
+### 斜杠命令：原生入口（可扩展到任意 agent）
 
-除了 `#` 触发，本项目还**为各平台生成了原生命令**，两者完全等价：
+除了 `#` 触发，`scripts/build_adapters.py` 会为各 agent 生成**原生斜杠命令**，两者完全等价：
 
-| 平台 | 命令位置 | 怎么调 |
+| Agent | 命令位置（在你的知识库目录下） | 怎么调 |
 |---|---|---|
-| **Claude Code** | `<知识库>/.claude/commands/<name>.md` | 输入 `/` 会看到 `ingest`、`search`、`ask` … |
-| **Gemini CLI** | `<知识库>/.gemini/commands/<name>.toml` | 同样 `/ingest` |
-| **Codex CLI** | —— | 自定义命令已在 0.117.0 移除，用 `#指令` 或 skills |
-| **其他 Agent** | —— | 用 `#指令`，任何能读文件的 Agent 都认 |
+| **Claude Code** | `.claude/commands/<name>.md` | 输入 `/` 会看到 `ingest`、`search`、`ask` … |
+| **OpenCode** | `.opencode/commands/<name>.md` | 同样 `/ingest` |
+| **pi** | `.pi/prompts/<name>.md` | 同样 `/ingest` |
+| **其他 agent** | 见下（可自行扩展） | 用 `#指令`，任何能读文件的 Agent 都认 |
+
+**机制不写死平台清单** —— 生成哪些目标由 `config.yaml` 决定：
+
+```yaml
+adapters:
+  slash: [claude, opencode, pi]        # 用内置预设
+  # 或给任意 agent 指定目录（只要你查清它的约定目录）：
+  # slash:
+  #   - dir: ".myagent/prompts"
+  #     name: myagent
+```
+
+> **已知无法通用的**（用 `#指令` 即可，功能不受影响）：
+> **Codex CLI** —— 自定义命令已在 0.117.0 被官方移除，要求改用 skills；
+> **Gemini CLI** —— 已被 Antigravity CLI 取代；
+> **DSH** —— 走 plugin 机制，不是「目录 + Markdown」。
 
 命令文件只是**转发层**：正文指向 `system/commands/<name>.md`，
 真正的步骤定义只有一份，不会出现两份真相。

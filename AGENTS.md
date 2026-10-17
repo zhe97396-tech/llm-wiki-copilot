@@ -37,18 +37,34 @@
 3. 读取 `system/commands/[指令名].md` 获取详细执行步骤
 4. 回复第一行打印：`[⚡系统拦截：正在严格执行 #xxx 流程...]`
 
-## 斜杠命令（各平台原生入口）
+## 斜杠命令（原生入口）
 
-本项目为 **Claude Code** 与 **Gemini CLI** 生成了原生命令，与 `#指令` 完全等价：
+除 `#指令` 外，`scripts/build_adapters.py` 会为各 agent 生成**原生斜杠命令**，两者完全等价：
 
-| 平台 | 命令位置 | 调用 |
+| Agent | 命令位置（都在 `data_root` 下） | 调用 |
 |---|---|---|
-| Claude Code | `<data_root>/.claude/commands/<name>.md` | `/<name>` |
-| Gemini CLI | `<data_root>/.gemini/commands/<name>.toml` | `/<name>` |
-| Codex CLI | ——（自定义命令已在 0.117.0 移除） | 用 `#指令` 或 skills |
+| Claude Code | `.claude/commands/<name>.md` | `/<name>` |
+| OpenCode | `.opencode/commands/<name>.md` | `/<name>` |
+| pi | `.pi/prompts/<name>.md` | `/<name>` |
+| 其他任意 agent | 见下（可自行扩展） | 用 `#指令`，或按需扩展 |
+
+**不限于上面的清单** —— 生成哪些目标由 `config.yaml` 决定：
+
+```yaml
+adapters:
+  slash: [claude, opencode, pi]        # 用预设
+  # 或给任意 agent 加自定义目录（只要你查清它的约定目录）：
+  # slash:
+  #   - dir: ".myagent/prompts"
+  #     name: myagent
+```
+
+> 未通用化的：**Codex CLI**（自定义命令 0.117.0 已移除，官方要求改用 skills）、
+> **Gemini CLI**（已被 Antigravity CLI 取代）、**DSH**（plugin 机制，非目录约定）——
+> 这三个用 `#指令` 即可，功能不受影响。
 
 12 个命令与 12 个 `#指令` 一一对应。命令文件只是**转发层**：正文指向
-`system/commands/<name>.md`，真正的步骤定义只有一份，不会产生两份真相。
+`system/commands/<name>.md`，真正的步骤定义只有一份。
 
 重新生成：`python scripts/build_adapters.py`
 
