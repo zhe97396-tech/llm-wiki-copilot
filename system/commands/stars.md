@@ -25,7 +25,7 @@ category: core
 
 3. **Step 3：新增项目处理**
    - 请求README前200行（容错：无README时降级）
-   - 自动分类（topics映射→描述推断→LLM兜底；**LLM兜底读README摘要判断**，见分类映射表）
+   - 自动分类（已有分类映射→描述推断→LLM兜底；**LLM兜底读README摘要判断**，见分类映射表）
    - LLM打3-5个中文场景标签（自动从项目 config.yaml 或宿主配置读取；环境变量 LLM_API_BASE/KEY/MODEL 优先，读不到则跳过标签）
 
 4. **Step 4：生成Markdown入库**
