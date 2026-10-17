@@ -16,7 +16,7 @@
 
 1. 获取当前系统日期（YYYY-MM-DD）
 2. **格式转换**：执行 `.venv/Scripts/python.exe scripts/convert.py --inbox`，将 INBOX 中的非 Markdown 文件（PDF/DOCX/PPTX/XLSX/EPUB/HTML/CSV/图片等）通过 MarkItDown 统一引擎自动转为 Markdown（⚠️ 必须用 .venv 的解释器：`python`=Hermes venv 没装 pytesseract/markitdown，图片 OCR 会静默失效）。转换后的 .md 文件与原文件共存于 INBOX 中。**同时自动检测英文 .md 文件，调用 Google Translate 翻译为中文，生成 `.zh-cn.md` 同名文件**。编译时优先使用中文版（`.zh-cn.md`），英文原文照常归档 `raw/`
-3. **入口链接查重（2026-08-17 新增，飞书收集管道统一判据）**：对 `00-INBOX/` 中 `feishu_` 来源文件（飞书内容收集管道产物，frontmatter 含 `source:` 链接）执行链接级查重：
+- **入口链接查重（2026-08-17 新增）**：对 `00-INBOX/` 中带来源链接的文件，先按 URL 归一化判重；同一链接已入库则跳过。
    - 抖音链接（v.douyin.com / douyin.com/video/）：解析 video_id → 查 `.llm-wiki/douyin_ledger.db` 账本 + `raw/douyin/` 下 .md 的 frontmatter `video_id`（短链与长链按 video_id 判重，字符串匹配不上）
    - 其他平台：规范化链接（去尾部斜杠/#fragment/utm_*）→ 查 `raw/` 所有 .md 的 frontmatter `source:` 精确匹配 + 00-INBOX 其他文件 source
    - **命中 = 该链接已入库/排队中 → 跳过该文件**，向用户汇报「重复跳过：文件 + 已存在于何处」；未命中才进入编译

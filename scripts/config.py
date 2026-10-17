@@ -106,7 +106,7 @@ def self_test() -> None:
     print(f"数据目录: {data_root()}")
     print(f"分类池:   {get('categories', ['(默认)'])}")
     print(f"LLM:      base_url={get('llm.base_url', '(未配置)')} model={get('llm.model', '(未配置)')}")
-    for name in ("github_stars", "douyin", "chubby", "opencli", "feishu"):
+    for name in ("github_stars", "douyin", "chubby", "opencli"):
         print(f"  集成 {name}: {'启用' if is_enabled(f'integrations.{name}.enabled') else '关闭'}")
 
 

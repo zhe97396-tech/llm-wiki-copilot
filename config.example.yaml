@@ -68,8 +68,3 @@ integrations:
     enabled: false
     command: "opencli"      # 或填绝对路径
 
-  # 飞书收集管道（需要你自建多维表格 + 云端工作流，见 docs/integrations.md）
-  feishu:
-    enabled: false
-    cli_profile: ""
-    ingest_dir: ""          # 表格抓取内容落地的 INBOX 目录

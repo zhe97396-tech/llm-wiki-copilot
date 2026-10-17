@@ -9,7 +9,7 @@
 兼容两种输入：
   - 单条链接：直接 `python douyin_batch.py "<URL>"`
   - 多条链接：`python douyin_batch.py "<URL1>" "<URL2>" ...` 或多个链接放一个文本文件（每行一条）用 `--file`
-  - 飞书多维表格：飞书收集管道把「收集记录」表里待处理的抖音链接集到一个 .txt 文件，用 `--file` 喂进来
+  - 外部清单：把一批链接写进文本文件（每行一条），用 `--file` 喂进来
 
 去重/续跑：每条先查账本（.llm-wiki/douyin_ledger.db 按 video_id），已转录的自动跳过；
 跑批中断后重跑，已记账的自动跳过 = 可续传。
@@ -19,7 +19,7 @@
 用法：
   python douyin_batch.py "<URL1>" "<URL2>"
   python douyin_batch.py --file urls.txt --output-dir ".../00-INBOX"
-  python douyin_batch.py --file feishu_pending_douyin.txt   # 飞书管道喂入
+  python douyin_batch.py --file pending_douyin.txt   # 从清单文件批量喂入
 """
 
 import argparse
@@ -307,7 +307,7 @@ def main():
         "skipped": skipped,
     })
 
-    # stdout：JSON 汇总（供飞书管道/脚本串联）
+    # stdout：JSON 汇总（供外部脚本串联）
     print(json.dumps({
         "ok": ok_list,
         "failed": [v for v, _ in failed],

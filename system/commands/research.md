@@ -43,7 +43,7 @@ category: retrieval
    | 内容来源 | 入库工具 | 说明 |
    |----------|----------|------|
    | 国内平台链接（B站/公众号/X/知乎/小红书/播客/TikTok） | Chubby Skills | `python <config.integrations.chubby.path>/tools/chubby.py ingest "<URL>"` → 直接输出 Markdown |
-   | 抖音链接 | 独立转录脚本 | `python <config.integrations.douyin.python> <config.integrations.douyin.transcribe_script> "<URL>"` → fetch_video_meta（playwright 渲染 + 拦截 aweme/detail API，2026-08-17 起，iesdouyin 分享页改版已失效）→ curl下载 → ffmpeg → SenseVoice → **规则纠错词表(A1，Step 5.5 确定性兜底)** → **patch式 LLM 整理(A2，默认；--full-correct 可强制旧全文)** → MD ｜ **多条批量**：`python <config.integrations.douyin.transcribe_script 同目录>/douyin_batch.py --file 链接清单.txt`（模型一次加载N条复用，飞书管道喂--file）|
+   | 抖音链接 | 独立转录脚本 | `python <config.integrations.douyin.python> <config.integrations.douyin.transcribe_script> "<URL>"` → fetch_video_meta（playwright 渲染 + 拦截 aweme/detail API，2026-08-17 起，iesdouyin 分享页改版已失效）→ curl下载 → ffmpeg → SenseVoice → **规则纠错词表(A1，Step 5.5 确定性兜底)** → **patch式 LLM 整理(A2，默认；--full-correct 可强制旧全文)** → MD ｜ **多条批量**：`python <config.integrations.douyin.transcribe_script 同目录>/douyin_batch.py --file 链接清单.txt`（模型一次加载N条复用，可从清单文件批量喂入）|
    | OpenCLI 读到的文本 | 直接写入 | 已是文本，直接存入 `00-INBOX/` |
    | Jina Reader 提取的网页 | 直接写入 | 已是文本，直接存入 `00-INBOX/` |
    | web_search 找到的网页 | Jina Reader 提取 | 先用 Jina 读全文，再存入 `00-INBOX/` |

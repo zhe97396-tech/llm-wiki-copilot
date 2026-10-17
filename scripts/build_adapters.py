@@ -25,6 +25,7 @@ from pathlib import Path
 # Bootstrap shared utilities
 sys.path.insert(0, str(Path(__file__).parent))
 from _utils import REPO_ROOT, read_file, write_file
+from config import data_root as _data_root
 
 # ── Platform definitions ───────────────────────────────────────────────
 
@@ -46,6 +47,82 @@ PLATFORMS = {
         "intro": "你正在通过 **Gemini CLI** 运行本知识副驾。",
     },
 }
+
+# ── 平台原生命令（斜杠命令）──────────────────────────────────────────
+# 各平台机制核实结果（2026-10）：
+#   Claude Code  .claude/commands/<name>.md    → /<name>          ✅ 活跃
+#   Gemini CLI   .gemini/commands/<name>.toml  → /<name>          ✅ 活跃（TOML 格式）
+#   Codex CLI    ~/.codex/prompts/<name>.md    → /prompts:<name>  ❌ 0.117.0 起已移除，官方要求改用 skills
+#
+# 命令文件必须写在 data_root（用户工作目录）：Claude Code 只认工作目录下的
+# .claude/commands/，写在引擎目录不会被加载。
+
+SLASH_TARGETS = {
+    "claude": {"rel": Path(".claude") / "commands", "ext": ".md"},
+    "gemini": {"rel": Path(".gemini") / "commands", "ext": ".toml"},
+}
+
+CLAUDE_COMMAND = """---
+description: {desc}
+---
+
+执行知识副驾的 `#{name}` 流程。
+
+1. 读取指令定义文件：`{engine}/system/commands/{name}.md`（数据目录由 config.yaml 的 data_root 指定）
+2. 严格按该文件执行，不要凭记忆简化步骤
+3. 第一行打印：`[⚡系统拦截：正在严格执行 #{name} 流程...]`
+
+用户附加说明：$ARGUMENTS
+"""
+
+GEMINI_COMMAND = """description = "{desc}"
+prompt = \"\"\"
+执行知识副驾的 `#{name}` 流程。
+
+1. 读取指令定义文件：`{engine}/system/commands/{name}.md`（数据目录由 config.yaml 的 data_root 指定）
+2. 严格按该文件执行，不要凭记忆简化步骤
+3. 第一行打印：`[⚡系统拦截：正在严格执行 #{name} 流程...]`
+
+{{{{args}}}}
+\"\"\"
+"""
+
+
+def read_command_meta() -> list:
+    """从 system/commands/*.md 的 frontmatter 读出 (name, description)。"""
+    cmds_dir = REPO_ROOT / "system" / "commands"
+    out = []
+    for f in sorted(cmds_dir.glob("*.md")):
+        text = read_file(f)
+        name = desc = ""
+        for line in text.splitlines()[:12]:
+            if line.startswith("name:"):
+                name = line.split(":", 1)[1].strip().strip('"\'')
+            elif line.startswith("description:"):
+                desc = line.split(":", 1)[1].strip().strip('"\'')
+        out.append((name or f.stem, desc or f"#{f.stem}"))
+    return out
+
+
+def build_slash_commands(dry_run: bool = False) -> None:
+    """生成各平台原生命令文件到 data_root/.<platform>/commands/。"""
+    root = _data_root()
+    engine = REPO_ROOT.as_posix()
+    cmds = read_command_meta()
+    print(f"\n  📁 斜杠命令 → {root}")
+    for platform, cfg in SLASH_TARGETS.items():
+        tpl = CLAUDE_COMMAND if platform == "claude" else GEMINI_COMMAND
+        target_dir = root / cfg["rel"]
+        if dry_run:
+            print(f"     [{platform}] {len(cmds)} 个 → {target_dir}")
+            continue
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for name, desc in cmds:
+            content = tpl.format(name=name, desc=desc, engine=engine)
+            write_file(target_dir / f"{name}{cfg['ext']}", content)
+        print(f"     ✅ [{platform}] {len(cmds)} 个 → {target_dir}")
+    print("     ℹ Codex CLI 已移除自定义命令（0.117.0），请用 skills 或 `#` 触发")
+
 
 # ── Template (2026-08-01 同步: 15指令 + Step1-9编译流程 + RAG脚本清单) ──
 
@@ -87,6 +164,21 @@ TEMPLATE = """# LLM Wiki 知识副驾
 2. 读取 `system/SKILL.md` 获取指令索引
 3. 读取 `system/commands/[指令名].md` 获取详细执行步骤
 4. 回复第一行打印：`[⚡系统拦截：正在严格执行 #xxx 流程...]`
+
+## 斜杠命令（各平台原生入口）
+
+本项目为 **Claude Code** 与 **Gemini CLI** 生成了原生命令，与 `#指令` 完全等价：
+
+| 平台 | 命令位置 | 调用 |
+|---|---|---|
+| Claude Code | `<data_root>/.claude/commands/<name>.md` | `/<name>` |
+| Gemini CLI | `<data_root>/.gemini/commands/<name>.toml` | `/<name>` |
+| Codex CLI | ——（自定义命令已在 0.117.0 移除） | 用 `#指令` 或 skills |
+
+12 个命令与 12 个 `#指令` 一一对应。命令文件只是**转发层**：正文指向
+`system/commands/<name>.md`，真正的步骤定义只有一份，不会产生两份真相。
+
+重新生成：`python scripts/build_adapters.py`
 
 **绝对红线**：
 1. 锚定原文，知识库没有的明确说"未收录"
@@ -151,6 +243,8 @@ def main():
                         help="Build only one platform (default: all)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Preview without writing files")
+    parser.add_argument("--no-slash", action="store_true",
+                        help="Skip generating platform slash commands")
     args = parser.parse_args()
 
     print("🔧 Adapter Builder")
@@ -161,6 +255,9 @@ def main():
     else:
         for key in PLATFORMS:
             build_platform(key, dry_run=args.dry_run)
+
+    if not args.no_slash:
+        build_slash_commands(dry_run=args.dry_run)
 
     print("=" * 40)
     if args.dry_run:

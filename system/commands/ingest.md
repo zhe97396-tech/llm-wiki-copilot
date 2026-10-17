@@ -14,13 +14,12 @@ category: core
 1. **Step 1：前置动作**
    - 获取当前系统日期
    - 执行 `.venv/Scripts/python.exe scripts/convert.py --inbox`，将 INBOX 中的非 Markdown 文件（PDF/DOCX/PPTX/图片）转为 Markdown（⚠️ 必须用 .venv 的解释器：`python`=Hermes venv 没装 pytesseract/markitdown，图片 OCR 会静默失效返回"未识别到文字内容"）
-   - **入口链接查重（2026-08-17 新增，飞书收集管道统一判据）**：对 `00-INBOX/` 中 `feishu_` 来源文件（飞书内容收集管道产物，frontmatter 含 `source:` 链接）执行链接级查重：
+- **入口链接查重（2026-08-17 新增）**：对 `00-INBOX/` 中带来源链接的文件，先按 URL 归一化判重；同一链接已入库则跳过。
      - 抖音链接（v.douyin.com / douyin.com/video/）：解析 video_id → 查 `.llm-wiki/douyin_ledger.db` 账本 + `raw/douyin/` 下 .md 的 frontmatter `video_id`（短链与长链按 video_id 判重，字符串匹配不上）
      - 其他平台：规范化链接（去尾部斜杠/#fragment/utm_*）→ 查 `raw/` 所有 .md 的 frontmatter `source:` 精确匹配 + 00-INBOX 其他文件 source
      - **命中 = 该链接已入库/排队中 → 跳过该文件**，向用户汇报「重复跳过：文件 + 已存在于何处」；未命中才进入编译
      - ⚠️ 去重匹配层是 `raw/`（转录稿/抓取内容 frontmatter source=真实链接），不是 `wiki/`（编译产物 source=平台名）
    - 预扫描 `wiki/ideas.md`（待深挖灵感池）
-   - **飞书表格快照落盘位置（2026-08-22 约定）**：处理飞书内容收集池需用 lark-cli 拉表时，命令必须带 `--output .llm-wiki/tmp/<表ID>_<时间戳>.ndjson --overwrite`，快照（.ndjson+.manifest.json）统一落在 `.llm-wiki/tmp/`，禁止在仓库根目录产生散落文件
    - 读取知识库上下文（`system/COMPILE.md`、`wiki/index.md`、`wiki/overview.md`、`purpose.md`）
 
 2. **Step 2：分析与关系判定**

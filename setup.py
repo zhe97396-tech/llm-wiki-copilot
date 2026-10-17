@@ -147,12 +147,6 @@ integrations:
   opencli:
     enabled: false
     command: "opencli"
-  feishu:
-    enabled: false
-    cli_profile: ""
-    base_token: ""
-    table_id: ""
-    ingest_dir: ""
 """
 
 
@@ -281,7 +275,7 @@ def main() -> int:
     3. 说： #start <标题>      开始深度带读
     4. 想搜东西： #search <关键词>
 
-  可选：采集外部内容（抖音/平台抓取/飞书）见 integrations/README.md
+  可选：采集外部内容（抖音 / 平台抓取 / 搜索）见 integrations/README.md
 """)
     return 0
 

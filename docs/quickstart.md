@@ -107,7 +107,6 @@ LLM Wiki Obsidian/
    - 最简单：直接拖 .md 文件进去
    - 网页文章：用 Obsidian Web Clipper 浏览器插件一键保存
    - PDF/DOCX/PPTX：直接放进去，`scripts/convert.py` 会自动转成 Markdown
-   - **飞书收集管道（2026-08 新增）**：飞书里把内容发给「内容收集池」bot → 云端工作流写入多维表格 → **每天 6:00 自动拉取生成 INBOX 文件**（`feishu_*.md`）→ 自动编译入库。详见 `upgrade-todo/飞书内容收集入库管道-2026-08.md`
 
 2. **告诉 AI 编译**
    - 在 Hermes 对话里说："编译新文章"或"执行编译"
@@ -501,9 +500,9 @@ wiki/conversations/          ← 深度解读版（已纳入Zvec索引，权重1
 | `#archive` | 状态变更 | `wiki/summaries/` 同一文件 | status: → archived |
 | `#research` | 新文章 | `00-INBOX/` | 搜索结果保存后待编译 |
 | `#research` | 补充信息 | `wiki/concepts/` 或 `wiki/summaries/` 同一文件底部 | 补充已有概念/文章的细节 |
-| `#bridge` | 隐含关联建议 | 对话中展示（手动）/ 飞书推送（定时） | 语义匹配找应该关联但没关联的文档对，确认后建双链 |
+| `#bridge` | 隐含关联建议 | 对话中展示（手动）/ 定时任务汇总 | 语义匹配找应该关联但没关联的文档对，确认后建双链 |
 | `#evergreen` | 综述文档 | `wiki/evergreen/` | 多篇distilled交叉提炼 |
-| `#lint` | 差异扫描报告 | 飞书推送（定时）/ 对话中展示（手动） | 机械检查+5级差异标注（CONFLICT/PERSPECTIVE/DEFINITION/TEMPORAL/INTERNAL） |
+| `#lint` | 差异扫描报告 | 定时任务汇总 / 对话中展示（手动） | 机械检查+5级差异标注（CONFLICT/PERSPECTIVE/DEFINITION/TEMPORAL/INTERNAL） |
 | `#index` | 索引数据 | `.llm-wiki/zvec_db/` | 增量/全量/重建Zvec索引 |
 | `#stars` | GitHub Stars | `github-stars/[分类]/` | API拉取→去重→分类→打中文标签→入库 |
 
