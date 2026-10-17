@@ -35,7 +35,7 @@ category: retrieval
    | 抖音视频 | OpenCLI（无search） | 抖音 adapter 只有 `opencli douyin whoami`（需 cookie），**无 search**；搜抖音用 web_search，或用户直接发链接入库 | ❌ 不可用 |
    | 公众号文章 | OpenCLI | `opencli weixin search "关键词"` | ✅ 无需登录（搜狗微信搜索） |
    | 公众号文章入库 | Chubby Skills | `python <config.integrations.chubby.path>/tools/chubby.py ingest "<URL>"` | 后端抓取，无需浏览器 |
-   | 中文网页/博客/新闻 | web_search | Hermes内置 | 无需登录 |
+| 中文网页/博客/新闻 | web_search | 宿主提供（有则用，无则跳过） | 无需登录 |
    | 任意网页全文 | Jina Reader | `curl https://r.jina.ai/<URL>` | 无需登录 |
 
    **环节二：入库（转Markdown）**

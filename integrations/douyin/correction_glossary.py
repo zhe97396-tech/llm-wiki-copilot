@@ -3,7 +3,7 @@
 
 来源：
 - Backtthefuture/video-transcript 的 podcast_glossary.py（规则替换思路）
-- 本项目 skill:llm-correction-miss-pool.md 漏校池 + chinese-video-transcription 常见错误模式
+# 常见错误模式来源：漏校池规则表（本项目积累）+ 视频转录常见谐音/同音错误
 
 定位：在 LLM 校对之前做一层确定性子串替换，把已确认的高频 ASR 误识别
 零成本修掉，LLM 只处理词表外的未知错误 → 更准、更省 token、更快。
