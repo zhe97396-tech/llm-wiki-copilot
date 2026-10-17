@@ -11,7 +11,7 @@ category: core
 
 **执行动作**：运行 `PYTHONPATH="" .venv/Scripts/python.exe scripts/github_stars_sync.py`，自动完成以下流程。
 
-⚠️ **必须用 `.venv/Scripts/python.exe`**：`python` = Hermes venv，**没有 PyYAML** → `llm_api` 读不到 Hermes config 里的 LLM 配置 → Step 3 的中文标签、LLM 兜底分类**全部静默降级**（只打印一行警告，文件照样入库但 `tags: []`）。`.venv/Scripts/python.exe` 同样可用。跑完可用 `PYTHONPATH="" .venv/Scripts/python.exe scripts/llm_api.py` 自检（应打印 base_url / api_key: SET / model；出现「缺少 PyYAML」告警 = 解释器用错）。历史教训：2026-08-01/08-30/09-17/10-09 四次同步都因裸 `python` 导致标签全空。
+⚠️ **必须用 `.venv/Scripts/python.exe`**：裸 `python` 可能指向宿主环境，**没有 PyYAML** → `llm_api` 读不到配置 → Step 3 的中文标签、LLM 兜底分类**全部静默降级**（只打印一行警告，文件照样入库但 `tags: []`）。跑完可用 `PYTHONPATH="" .venv/Scripts/python.exe scripts/llm_api.py` 自检（应打印 base_url / api_key: SET / model；出现「缺少 PyYAML」告警 = 解释器用错）。
 
 1. **Step 1：拉取GitHub API**
    - 获取当前用户（`config.yaml` 里 `integrations.github_stars.username` 配置的用户名）的所有starred项目
@@ -26,7 +26,7 @@ category: core
 3. **Step 3：新增项目处理**
    - 请求README前200行（容错：无README时降级）
    - 自动分类（topics映射→描述推断→LLM兜底；**LLM兜底读README摘要判断**，见分类映射表）
-   - LLM打3-5个中文场景标签（自动从Hermes config.yaml读取当前provider，环境变量LLM_API_BASE/KEY/MODEL优先，失败时降级跳过标签）
+   - LLM打3-5个中文场景标签（自动从项目 config.yaml 或宿主配置读取；环境变量 LLM_API_BASE/KEY/MODEL 优先，读不到则跳过标签）
 
 4. **Step 4：生成Markdown入库**
    - 按模板生成到 `github-stars/[分类]/[owner-name].md`

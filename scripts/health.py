@@ -228,7 +228,7 @@ def check_orphan_pages(pages: list[Path]) -> list[dict]:
 # Preset categories from COMPILE.md (8 core + dynamic expansion allowed)
 PRESET_CATEGORIES = {
     "AI & 技术",
-    "内容创作 & IP",
+    "内容与传播",
     "投资 & 财经",
     "管理 & 领导力",
     "创业",

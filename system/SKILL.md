@@ -44,7 +44,7 @@
 
 - `system/SKILL.md` — 本文件（指令索引）
 - `system/commands/` — 各指令详细定义（含 `#ingest` 编译入库）
-- `system/PROMPT.md` — 编译提示词（Step0格式转换→Step1-4编译流程）
+- `system/PROMPT.md` — 编译主流程（Step 1→9，含 Step 3.5 实体索引）
 - `system/COMPILE.md` — 双轨编译规则与模板
 - `scripts/search.py` — Zvec 混合检索（jieba FTS+向量+RRF+P0软分段+P1关键词降级+P2双路+P3多样性），降级 CJK bigram
 - `scripts/ask.py` — Ask问答引擎：检索+复杂度判断+覆盖度评分+缺口检测

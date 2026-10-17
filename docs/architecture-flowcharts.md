@@ -1,9 +1,9 @@
-# 流程图与架构图: LLM Wiki 能力升级
+# 架构与全链路流程图
 
 >
 > ⚠️ **维护提醒**：wiki 项目有增删或调整时，必须同步更新以下两个文档：
-> - `upgrade-todo/quickstart.md` — 使用指南（指令表、场景示例、FAQ）
-> - `upgrade-todo/flowcharts.md` — 流程图与架构图（编译流程、搜索流程、脚本层）
+> - `docs/quickstart.md` — 使用指南（指令表、场景示例、FAQ）
+> - `docs/architecture-flowcharts.md` — 架构与全链路流程图
 
 ---
 
@@ -178,7 +178,7 @@ flowchart LR
   AI 读完原文 → 直接生成总结 → 完事
   问题：不知道知识库里已有什么，容易重复或遗漏
 
-新流程（十步走）：
+新流程（Step 1→9，含 Step 3.5 实体索引）：
   Step 1：AI 先做前置（convert.py 格式转换+英文翻译+读取知识库上下文：已有概念、overview、purpose）
   Step 2：AI 分析"这篇文章讲了什么，和已有知识什么关系，有没有矛盾"（6类分析关系：引用/补充/推翻/对比/时序/包含层级）
   Step 3：AI 基于分析生成总结，概念页按2026-08-02判定标准处理（3条件：抽象性/可复用性/可定义性；排除工具/产品/人名/项目名；可零概念不硬凑），已有概念重写而非追加，矛盾标记
@@ -248,7 +248,7 @@ flowchart TD
     ST4 --> R3["逐段精讲+用户主导答疑"]
 
     S1 -.->|"降级: Zvec 不可用"| S5["CJK Bigram 搜索<br/>2字滑动窗口+英文分词"]
-    S5 -.->|"再降级"| S6["Hermes 直接读文件判断"]
+    S5 -.->|"再降级"| S6["宿主 Agent 直接读文件判断"]
 ```
 
 **人话版**：
@@ -309,7 +309,7 @@ graph TB
     subgraph 数据["数据层"]
         ZV["Zvec 数据库<br/>.llm-wiki/zvec_db/"]
         EC["索引缓存<br/>.llm-wiki/embed-cache.json"]
-        MC["模型缓存<br/>&lt;data_root&gt;/.llm-wiki/fastembed_cache/<br/>约 220MB 一次性"]
+        MC["模型缓存<br/>&lt;data_root&gt;/.llm-wiki/fastembed_cache/<br/>约 241MB 一次性"]
     end
 
     W4 --> ZV
@@ -426,8 +426,8 @@ flowchart TD
     DIFF --> UNSTAR["取消star → 标记归档"]
 
     NEW --> README["读README前200行<br/>（GitHub API）"]
-    README --> CLASSIFY["自动分类<br/>① topics映射表<br/>② 描述关键词<br/>③ LLM从已有分类选<br/>④ other兜底"]
-    CLASSIFY --> LLM["LLM打中文描述+标签<br/>（LLM_API_BASE/KEY/MODEL<br/>→ Hermes config.yaml custom_providers）<br/>描述：2-3句40-80字<br/>标签：3-5个中文场景标签"]
+    README --> CLASSIFY["自动分类<br/>① 已有分类映射表<br/>② 描述关键词<br/>③ LLM从已有分类选<br/>④ other兜底"]
+    CLASSIFY --> LLM["LLM打中文描述+标签<br/>（LLM_API_BASE/KEY/MODEL<br/>→ 项目 config.yaml / 宿主配置）<br/>描述：2-3句40-80字<br/>标签：3-5个中文场景标签"]
     LLM --> |"API失败降级"| LLM_FALL["跳过标签<br/>仅英文描述入库"]
     LLM --> GEN["生成Markdown<br/>github-stars/[分类]/[owner]-[repo].md"]
     LLM_FALL --> GEN
@@ -512,46 +512,4 @@ tags: [标签1, 标签2, ...]  ← 中文场景标签（LLM生成）
 
 
 
-```mermaid
-flowchart TD
 
-    RUBRIC --> SCORE["1. 打分<br/>7维 rubric 对草稿打分"]
-
-    SCORE --> PREDICT["2. 盲预测（immutable）<br/>7组件: composite/CTR/互动/涨粉/场景/锚点/信心<br/>⚠️ 预测必须在看到实际数据之前写完<br/>写完后不可修改，只能往复盘段追加"]
-
-    PREDICT --> PUBLISH["3. 发布登记<br/>拍摄buffer管理（拍了 vs 发了分离）<br/>发布元数据登记"]
-
-    PUBLISH --> RETRO["4. 复盘（T+3d）<br/>用户填入实际数据<br/>预测 vs 实际对比<br/>偏差分析"]
-
-    RETRO --> BUMP{"5. 升级 rubric？<br/>校准池 ≥ 5篇数据？"}
-    BUMP -->|"是"| BUMP_DO["全量重打校准池<br/>跨模型独立审核<br/>≥4/5样本排序一致才通过"]
-    BUMP -->|"否"| SCORE2["继续打分下一篇"]
-    BUMP_DO --> SCORE2
-
-    style INIT fill:#FF9800,color:#fff
-    style PREDICT fill:#2196F3,color:#fff
-    style RETRO fill:#9C27B0,color:#fff
-    style BUMP fill:#4CAF50,color:#fff
-```
-
-
-```
-       ↓
-       ↓
-       ↓
-发布后 "复盘" → T+3d数据回收 → 预测vs实际对比
-       ↓
-积累5+篇 → "升级rubric" → 校准池全量重打 + 跨模型审核
-```
-
-
-| 原因 | 说明 |
-|------|------|
-| 完整5阶段闭环 | 打分→预测→发布→复盘→进化rubric，阉割成YAML字段会丢失核心能力 |
-| immutable日志 | 预测是独立文件不可修改，写进脚本YAML会破坏不可变性 |
-| rubric进化 | 校准池全量重打+跨模型审核，需要独立状态管理 |
-
-**三条不可妥协原则**：
-1. **盲预测**：预测必须在看到实际数据之前写完，写完不可修改
-2. **升级=全量重打**：rubric升级时校准池所有有实绩数据的样本必须用新公式重打
-3. **rubric是工作台不是博物馆**：被新数据推翻的观察直接删掉，不留考古层

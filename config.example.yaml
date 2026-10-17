@@ -51,7 +51,7 @@ paths:
 
 # ── 可选集成（默认全部关闭）───────────────────────────────
 # 采集层依赖第三方工具与你的平台账号，按需开启。
-# 每个集成的详细安装与授权步骤见 docs/integrations.md
+# 每个集成的详细安装与授权步骤见 integrations/README.md
 integrations:
   # GitHub Stars 同步（#stars）
   github_stars:

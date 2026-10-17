@@ -24,7 +24,7 @@ category: core
 
 1. **Step 1：前置动作**
    - 获取当前系统日期
-   - 执行 `.venv/Scripts/python.exe scripts/convert.py --inbox`，将 INBOX 中的非 Markdown 文件（PDF/DOCX/PPTX/图片）转为 Markdown（⚠️ 必须用 .venv 的解释器：`python`=Hermes venv 没装 pytesseract/markitdown，图片 OCR 会静默失效返回"未识别到文字内容"）
+   - 执行 `.venv/Scripts/python.exe scripts/convert.py --inbox`，将 INBOX 中的非 Markdown 文件（PDF/DOCX/PPTX/图片）转为 Markdown（⚠️ 必须用项目 venv 的解释器：裸 `python` 可能指向宿主环境、缺 pytesseract/markitdown，图片 OCR 会静默失效返回"未识别到文字内容"）
 - **入口链接查重（2026-08-17 新增）**：对 `00-INBOX/` 中带来源链接的文件，先按 URL 归一化判重；同一链接已入库则跳过。
      - 抖音链接（v.douyin.com / douyin.com/video/）：解析 video_id → 查 `.llm-wiki/douyin_ledger.db` 账本 + `raw/douyin/` 下 .md 的 frontmatter `video_id`（短链与长链按 video_id 判重，字符串匹配不上）
      - 其他平台：规范化链接（去尾部斜杠/#fragment/utm_*）→ 查 `raw/` 所有 .md 的 frontmatter `source:` 精确匹配 + 00-INBOX 其他文件 source

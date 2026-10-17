@@ -3,8 +3,8 @@
 > 写给重新学习的自己。从零开始，一步步学会用这个知识库。
 >
 > ⚠️ **维护提醒**：wiki 项目有增删或调整时，必须同步更新以下两个文档：
-> - `upgrade-todo/quickstart.md` — 本文件（指令表、场景示例、FAQ）
-> - `upgrade-todo/flowcharts.md` — 流程图与架构图（编译流程、搜索流程、脚本层）
+> - `docs/quickstart.md` — 使用指南（指令表、场景示例、FAQ）
+> - `docs/architecture-flowcharts.md` — 架构与全链路流程图
 
 ---
 
@@ -84,14 +84,15 @@
 
 ---
 
-## 四、13个指令速查表
+## 四、12 个指令速查表
 
 | 指令           | 中文别名        | 干什么    | 操作对象                                                         | 什么时候用           |
 | ------------ | ----------- | ------ | ------------------------------------------------------------ | --------------- |
-| `#search`    | `#搜索`       | 搜索相关文档 | 全量搜索（wiki + github-stars + topics）                    | 想找以前存过的内容       |
+| `#search`    | `#搜索`       | 搜索相关文档 | 全量搜索（wiki + github-stars）                    | 想找以前存过的内容       |
 | `#ask`       | `#问`        | 问知识库问题 | ask.py判断复杂度→simple直接答/complex先引导再整合/comparative对比分析 | 想了解某个概念，或问复杂问题 |
 | `#research`  | `#调研`       | 搜索网络补充 | 网络 → `00-INBOX/` 或补充已有文件                                     | 知识库里没有，想从网上找    |
 | `#start`     | `#开始`       | 深度带读   | `wiki/summaries/`（主线）+ `raw/`（原文引用）                          | 想认真消化某篇文章       |
+| `#distill`   | `#复盘` `#总结` | 深度复盘   | 源文件 → `wiki/conversations/`（思维导图+逻辑重组+对话增量） | 读完想做彻底复盘        |
 | `#archive`   | `#冷宫`       | 归档文章   | `wiki/summaries/`（状态→archived）                               | 这篇文章不值得深究       |
 | `#bridge`    | `#织网`       | 知识织网   | `wiki/` 全部（语义匹配找隐含关联）                         | 让知识库关联更紧密       |
 | `#lint`      | `#纠错`       | 差异扫描   | `wiki/` 全部（机械检查+5级差异标注）                             | 检查知识库有没有冲突/差异   |
@@ -116,7 +117,7 @@
    - PDF/DOCX/PPTX：直接放进去，`scripts/convert.py` 会自动转成 Markdown
 
 2. **告诉 AI 编译**
-   - 在 Hermes 对话里说："编译新文章"或"执行编译"
+   - 在你的 Agent 对话里说："编译新文章"或"执行编译"
    - AI 会读取 `system/PROMPT.md` 的编译流程：
      - Step 1：读取知识库上下文（已有概念、overview、purpose）+ 英文自动翻译
      - Step 2：分析原文——提取了什么概念？和已有内容什么关系？（6类分析关系：引用/补充/推翻/对比/时序/包含层级）
@@ -142,9 +143,9 @@
 ```
 你：#search 信息过载
 AI：🔍 搜索完成！找到 3 篇相关文档：
-  1. [[认知Commons]] — 讨论公共信息环境被污染的问题
-  2. [[慢速内容]] — 对认知Commons污染的主动应对
-  3. [[MCP协议]] — （相关性较低）
+  1. [[间隔重复-遗忘曲线与记忆调度]] — 记忆衰减规律与复习时机
+  2. [[主动回忆]] — 与之互补的提取练习
+  3. [[每日复盘清单-五分钟三问]] — （相关性较低）
 ```
 
 **搜索原理**：Zvec 混合检索（jieba FTS 关键词 + 向量语义 + RRF融合）+ 双链邻居扩展 + 实体搭桥扩展，四级流水线：
@@ -176,14 +177,14 @@ AI：[⚡系统拦截：正在严格执行 #ask 流程...]
 你：#ask 怎么建立长期的阅读习惯
 AI：[⚡系统拦截：正在严格执行 #ask 流程...]
 
-    📊 问诊结果：complex | 覆盖度：0.6 (partial) | 缺口：起号
+    📊 问诊结果：complex | 覆盖度：0.6 (partial) | 缺口：复习时机
 
     你想要哪种？
     1) 帮我列出来 — 每篇讲了什么 + 它们之间的关系
     2) 总结成文档 — 整合多文档，串联逻辑
     3) 给我实操步骤 — 从知识库内容推导出可执行步骤
 
-    ⚠️ 知识库对"起号"覆盖不足，要不要我去网上搜一下补充？
+    ⚠️ 知识库对"复习时机"覆盖不足，要不要我去网上搜一下补充？
 ```
 
 **关键**：
@@ -204,9 +205,9 @@ AI：[⚡系统拦截：正在严格执行 #start 流程...]
     - 🗄️ 原文层：已读取 [[源文件]]
 
     📎 相关推荐：和本文语义相关的文档：
-    - [[慢速内容]] — 语义相似度最高
-    - [[注意力经济]] — 讨论同一主题的不同角度
-    - ⭐ awesome-hermes-agent — 你收藏的项目：Hermes技能资源清单（github-stars）
+    - [[主动回忆]] — 语义相似度最高
+    - [[费曼技巧]] — 讨论同一主题的不同角度
+    - ⭐ ai-agents — 你收藏的项目：AI 智能体资源清单（github-stars）
 
     带 ⭐ 的是你 GitHub Stars 收藏的项目，适合对照实践。
 
@@ -347,7 +348,7 @@ AI：⭐ GitHub Stars 同步开始...
 **增量更新**：只有第一次是全量，后续只处理新增的几个项目，几秒钟搞定。零token消耗（对比是纯字符串比较）。
 
 **分类逻辑**（三层兜底）：
-1. topics匹配映射表 → 精准分类
+1. 已有分类映射表 → 精准分类
 2. 描述关键词推断 → 推断分类
 3. LLM从已有分类中选 → 不新建乱分类
 4. 都不行 → other
@@ -483,8 +484,8 @@ wiki/summaries/ (status: reading)
 wiki/summaries/ (status: distilled)
 wiki/conversations/          ← 深度解读版（已纳入Zvec索引，权重1.15）
     │
-    │    搜索范围: summaries + concepts + evergreen + topics
-    │    排除: github-stars（创作不需要工具推荐）
+    │    搜索范围: summaries + concepts + evergreen
+    │    排除: github-stars（工具类内容单独归类）
     ↓
     │                        ← 底部溯源
     ↓
@@ -546,7 +547,7 @@ Top-K 结果
 |------|------|------|
 | Zvec 0.5.1 | 向量数据库（FTS+向量+RRF） | ¥0，12MB |
 | fastembed 0.8.0 | 本地embedding推理（ONNX） | ¥0 |
-| multilingual-MiniLM-L12-v2 | 多语言embedding模型 | ¥0，220MB（一次性下载） |
+| multilingual-MiniLM-L12-v2 | 多语言embedding模型 | ¥0，约 241MB（一次性下载） |
 | onnxruntime 1.20.1 | ONNX推理引擎 | 已安装 |
 
 **全本地运行，零API调用，零费用，支持离线。**
@@ -588,7 +589,7 @@ Top-K 结果
 |------|---------|------|
 | Zvec数据库损坏/丢失，或 fastembed 模型加载失败 | 自动降级 CJK bigram 搜索（+双链邻居扩展） | 只匹配字面，语义搜索不可用 |
 | entity_index.db损坏/丢失 | 跳过实体搭桥，只走Zvec+双链 | 搜索正常，但跨文档关联发现能力降级 |
-| 都不可用 | Hermes直接读文件判断（Agent层兜底） | 最原始但保证可用 |
+| 都不可用 | 宿主 Agent 直接读文件判断（Agent 层兜底） | 最原始但保证可用 |
 
 ### Zvec 索引范围
 
@@ -643,7 +644,7 @@ orphan_page:
   ℹ️ Page 'xxx' has no inbound wikilinks (orphan)
 ```
 
-**6项检查**（0 LLM 调用，0.2秒跑完）：
+**8 项检查**（0 LLM 调用，秒级跑完）：
 
 | 检查项 | 怎么找的 | 严重级别 |
 |--------|---------|---------|
@@ -698,7 +699,7 @@ python scripts/convert.py --inbox
 - **EPUB** → Markdown（电子书内容提取）
 - **HTML** → Markdown（网页内容提取）
 - **CSV** → Markdown（表格数据）
-- **图片** → Markdown 占位符（OCR 未配置，需手动描述）
+- **图片** → 自动 OCR 提取文字（需系统装 Tesseract；未装则退化为占位符）
 
 ---
 
@@ -747,8 +748,8 @@ A：知识库里确实没有相关内容。可以用 `#research 主题` 从网�
 **Q：编译时概念重复创建了？**
 A：不应该发生。两步编译的 Step 2 会先分析已有概念，Step 3 只对已有概念建双链、新概念才新建页面。另外 Step 5 会做语义去重检测，如果新文档和已有文档内容高度相似会提醒你。如果遇到问题，检查 `wiki/index.md` 是否和实际文件同步。
 
-**Q：想换用 Codex 而不是 Hermes？**
-A：在 Codex 里打开这个项目，它会自动读取 `AGENTS.md`，指令完全一样。
+**Q：想换用别的 Agent？**
+A：在那个 Agent 里打开本项目即可 —— 它会读入口文件（`CLAUDE.md` 或 `AGENTS.md`），指令完全一样。
 
 **Q：搜索索引出问题了怎么办？**
 A：用 `#索引 重建` 从零重建索引。日常 `#ingest` 编译时会自动索引新文档，一般不需要手动操作。
@@ -775,12 +776,13 @@ A：会。如果新文章补充了已有文档的信息，已有文档正文会�
 A：会。`convert.py --inbox` 自动检测英文文件，调用 Google Translate 翻译为中文版（`.zh-cn.md`），编译时使用中文版，英文原文归档到 `raw/`。还会用 LLM 做术语校验（需配置 `LLM_API_KEY` 环境变量，没配则跳过校验）。
 
 **Q：embed.py / search.py 报错 No module named 'zvec._zvec'？**
-A：需要用独立venv运行，命令：`PYTHONPATH="" .venv/Scripts/python.exe scripts/embed.py`。不要直接用 `python scripts/embed.py`，因为Hermes venv的zvec是Python 3.11编译的，跟当前Python 3.13不兼容。
+A：需要用独立venv运行，命令：`PYTHONPATH="" .venv/Scripts/python.exe scripts/embed.py`。不要直接用 `python scripts/embed.py`，因为宿主环境的 zvec 与本项目 Python 版本不匹配（各自编译的二进制扩展不通用）。
 
 
 
 **Q：conversations 目录里的文件有用吗？**
-A：有用。它存的是 `#复盘` 的深度解读版，已纳入 Zvec 索引（SOURCE_TIER 1.15），可被搜索命中。深度解读版包含完整的推演过程和精华提炼，搜索和创作时都能作为高质量素材来源。源文件底部沉淀区保留指向 Chat 文件的链接，可跳转查看完整推演。
+A：有用。它存的是 `#复盘` 的深度解读版，已纳入 Zvec 索引（SOURCE_TIER 1.15），可被搜索命中。深度解读版包含完整的推演过程和精华提炼，搜索和写作时都能作为高质量素材来源。源文件底部沉淀区保留指向 Chat 文件的链接，可跳转查看完整推演。
 
 
-**Q：topics 在 Zvec 搜索中权重怎么排？**
+**Q：不同类型页面的搜索权重怎么排？**
+A：`SOURCE_TIER` 从高到低：`synthesis`（常青综述）1.4 > `concept`（概念页）1.3 > `entity` / `topic` 1.2 > `distill`（深度解读版）1.15 > `snippet` 1.1 > `source`（总结页）1.0 > `github-star` 0.8。常青综述权重最高 —— 它是多篇交叉提炼出的结论层。

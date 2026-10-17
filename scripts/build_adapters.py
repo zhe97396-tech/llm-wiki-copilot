@@ -15,7 +15,7 @@ Each output file has:
 
 Usage:
     python scripts/build_adapters.py              # generate all
-    python scripts/build_adapters.py --platform hermes   # generate one
+    python scripts/build_adapters.py --platform claude   # generate one
     python scripts/build_adapters.py --dry-run     # preview without writing
 """
 
@@ -277,9 +277,12 @@ scripts/
   health.py          ← 纯确定性健康检查（0 LLM）
   convert.py         ← 多格式→Markdown转换（MarkItDown统一引擎：PDF/DOCX/PPTX/XLSX/EPUB/HTML/CSV/图片OCR）
   watch.py           ← INBOX 文件监听器
-  build_adapters.py  ← 平台适配器构建脚本
+  build_adapters.py  ← 平台适配器构建（入口文件 + 各 agent 原生斜杠命令）
   dashboard.py       ← 看板HTML生成
   github_stars_sync.py ← GitHub Stars 同步入库脚本
+  config.py          ← 统一配置加载（环境变量 > config.yaml > 默认）
+  llm_api.py         ← LLM 调用统一入口（可选增强；未配置则优雅跳过）
+  check_distilled.py ← 带读前查重（#start 的前置过滤）
 github-stars/         ← GitHub Stars 仓库（#stars 触发同步）
 wiki/
   summaries/         ← 总结文档（编译产物，核心主干）
