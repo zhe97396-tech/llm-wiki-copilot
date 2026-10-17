@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-labelledby="title desc">
+  <title>llm-wiki-copilot</title>
+  <desc>项目名与一句话说明：让你的 AI Agent 把碎片内容编译成可调用的知识体系。右侧是真实的本地检索输出示例：搜索「怎么才能记得更牢」，命中概念页「遗忘曲线」，并自动带出双链邻居。</desc>
+
+  <rect width="1200" height="340" rx="26" fill="#0d1117"/>
+
+  <!-- ── 左侧：标题块 ── -->
+  <g id="title-block" transform="translate(56 46)">
+    <text x="0" y="0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#58a6ff" letter-spacing="1.6">知识副驾 · AI AGENT 工具包</text>
+
+    <text x="0" y="72" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="56" font-weight="700" fill="#e6edf3">llm-wiki-copilot</text>
+
+    <text x="0" y="126" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="22" fill="#8b949e">让你的 AI Agent 把碎片内容，</text>
+    <text x="0" y="160" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="22" fill="#8b949e">编译成可调用的知识体系。</text>
+
+    <g id="meta" transform="translate(0 212)">
+      <rect x="-6" y="-20" width="86" height="30" rx="6" fill="#1f6feb" opacity="0.18"/>
+      <text x="8" y="0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#58a6ff">MIT</text>
+      <text x="104" y="0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#8b949e">本地优先</text>
+      <text x="200" y="0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#8b949e">零 API 可跑</text>
+      <text x="322" y="0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#8b949e">12 个指令</text>
+    </g>
+  </g>
+
+  <!-- ── 右侧：真实输出（proof）── -->
+  <g id="project-proof" transform="translate(660 44)">
+    <rect width="484" height="252" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+
+    <!-- 终端标题栏 -->
+    <circle cx="26" cy="28" r="5" fill="#30363d"/>
+    <circle cx="46" cy="28" r="5" fill="#30363d"/>
+    <circle cx="66" cy="28" r="5" fill="#30363d"/>
+    <text x="88" y="33" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6e7681">zvec · 本地混合检索</text>
+    <line x1="0" y1="52" x2="484" y2="52" stroke="#30363d" stroke-width="1"/>
+
+    <!-- 查询行 -->
+    <text x="26" y="86" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#e6edf3">#search 怎么才能记得更牢</text>
+
+    <!-- 命中 -->
+    <text x="26" y="122" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#3fb950">→</text>
+    <text x="52" y="122" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#e6edf3">concepts/遗忘曲线</text>
+    <text x="458" y="122" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#6e7681">0.0325</text>
+
+    <!-- 双链邻居（关键能力） -->
+    <text x="52" y="154" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#8b949e">neighbors: 费曼学习法 · 间隔重复</text>
+
+    <!-- 后端 -->
+    <text x="52" y="186" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#58a6ff">backend: zvec</text>
+
+    <line x1="0" y1="208" x2="484" y2="208" stroke="#30363d" stroke-width="1"/>
+    <text x="26" y="234" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6e7681">6 pages · 0 errors · 数据不出本机</text>
+  </g>
+</svg>

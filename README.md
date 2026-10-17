@@ -1,10 +1,22 @@
 # llm-wiki-copilot
 
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%"
+       alt="llm-wiki-copilot：让你的 AI Agent 把碎片内容编译成可调用的知识体系。右侧为真实的本地检索输出示例（搜索命中概念页并自动带出双链邻居）。">
+</p>
+
 **让你的 AI Agent 把碎片内容编译成可调用的知识体系。**
 
 本地运行 · 纯 Markdown · 索引全在本地 · 零 API 也能检索 · 数据永远是你自己的
 
 ---
+
+## 从碎片到体系
+
+<p align="center">
+  <img src="./assets/readme/pipeline.svg" width="100%"
+       alt="五段链路：采集 → 编译 → 检索 → 内化 → 沉淀，全部在本机完成。">
+</p>
 
 ## 先说结果：它用起来是什么样
 
