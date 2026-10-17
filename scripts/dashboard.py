@@ -803,6 +803,7 @@ def main():
     html = generate_html(stats, issues)
 
     output_path = INDEX_DIR / "dashboard.html"
+    output_path.parent.mkdir(parents=True, exist_ok=True)   # 空库也能跑：自动建 index/
     output_path.write_text(html, encoding="utf-8")
     print(f"✅ Dashboard generated: {output_path}")
     print(f"   {stats['total_concepts']} concepts, {stats['total_summaries']} summaries")

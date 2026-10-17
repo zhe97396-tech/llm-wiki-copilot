@@ -683,6 +683,15 @@ def main():
                         help="Specific files to check (incremental mode for category_routing)")
     args = parser.parse_args()
 
+    # 空库友好提示：用户还没跑初始化向导时，别甩一堆 ERROR 吓人
+    if not (DATA_ROOT / "00-INBOX").exists() and not (DATA_ROOT / "wiki").exists():
+        print("知识库尚未初始化（数据目录里还没有骨架）。")
+        print(f"  数据目录：{DATA_ROOT}")
+        print("  请先运行初始化向导：python setup.py   （或 install.ps1 / install.sh）")
+        print("  说明：本项目不依赖 Obsidian —— 数据目录就是个普通文件夹，")
+        print("        骨架由初始化向导自动创建（幂等，不会覆盖已有内容）。")
+        return 0
+
     # Parse --files into Path objects
     file_paths = None
     if args.files:
