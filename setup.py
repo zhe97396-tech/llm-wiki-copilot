@@ -106,7 +106,7 @@ def build_config(data_root: Path, categories: list[str], llm: dict) -> str:
     cat_yaml = "\n".join(f"  - {c}" for c in categories)
     return f"""# llm-wiki-copilot 配置（由 setup.py 生成，可随时手改）
 
-# ── 数据目录：知识库本体所在位置（用 Obsidian 打开这里）──
+# ── 数据目录：知识库本体所在位置（用 Obsidian 或任意编辑器打开这里）──
 data_root: "{data_root.as_posix()}"
 
 purpose_file: "purpose.md"
@@ -198,7 +198,7 @@ def main() -> int:
     # ── Q1 数据目录 ──
     default_root = args.data_root or str(REPO_ROOT / "vault")
     print("【1/3】知识库放在哪里？")
-    print("       （用 Obsidian 打开这个目录；与引擎分开，隐私更干净）")
+    print("       （用 Obsidian 或任意编辑器打开；与引擎分开，隐私更干净）")
     if yes:
         data_root = Path(default_root)
         print(f"       -> {data_root}")
@@ -267,7 +267,7 @@ def main() -> int:
     print("=" * 64)
     print(f"""
   你的知识库：{data_root}
-  （用 Obsidian 打开这个目录；引擎在 {REPO_ROOT}）
+  （引擎在 {REPO_ROOT}；这个目录用 Obsidian 或任意编辑器打开都行）
 
   下一步：
     1. 把任意文章 / PDF / 截图丢进 {data_root / '00-INBOX'}/
