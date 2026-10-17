@@ -72,7 +72,7 @@
 
 | 适合 | 不适合 |
 |---|---|
-| 已经在用 Claude Code / Codex / Cursor / Gemini CLI 的人 | 还没用过任何 AI Agent 的人（先去用一周再来） |
+| 已经在用 Claude Code / Codex / OpenCode / pi / Cursor 的人 | 还没用过任何 AI Agent 的人（先去用一周再来） |
 | 有长期积累习惯，笔记已经多到"搜不到"的人 | 只想要"一键总结"的人（那用现成 App 更快） |
 | 在意数据主权，不想把笔记传到云端的人 | 希望开箱即用、不想碰终端的人 |
 | 愿意读一遍文档、按自己习惯调提示词的人 | 期待装完就自动运转、零配置的人 |
@@ -279,7 +279,7 @@ https://...
 | `config.yaml` / `.env` / `*.local` 都在 `.gitignore` 里，**永远不会进 git** | `cat .gitignore` |
 | 配置模板里只有空占位符，没有真实值 | `grep -i "key\|token\|cookie" config.example.yaml` |
 | **代码从不打印密钥值** —— 自检只显示「是否设置 + 长度」 | `python scripts/llm_api.py` → `api_key: SET(len=51)` |
-| 生成的入口文件与斜杠命令文件里不含密钥 | `grep -i api_key CLAUDE.md AGENTS.md GEMINI.md` |
+| 生成的入口文件与斜杠命令文件里不含密钥 | `grep -i api_key CLAUDE.md AGENTS.md` |
 | 缺密钥时优雅跳过并明确告知，不报错、不静默失败 | 不配任何 key 直接跑 `#ingest` |
 
 **布局上的保护**：密钥放**引擎目录**的 `config.yaml`（或环境变量），你的知识在**数据目录**。

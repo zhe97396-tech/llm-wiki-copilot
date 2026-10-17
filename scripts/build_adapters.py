@@ -3,12 +3,13 @@
 Adapter builder: generate platform-specific entry files from system/SKILL.md.
 
 Reads the platform-neutral routing template and generates:
-  - CLAUDE.md  (Hermes / Claude Code)
-  - AGENTS.md  (Codex / OpenCode)
-  - GEMINI.md  (Gemini CLI)
+  - CLAUDE.md  (Claude Code 及兼容约定)
+  - AGENTS.md  (Codex / OpenCode / 其它遵循该约定的 agent)
+And, optionally, the native slash commands of each configured agent target
+(see `adapters.slash` in config.yaml; presets: claude / opencode / pi).
 
 Each output file has:
-  - Platform-specific intro ("你正在通过 Hermes 运行" vs "Codex" vs "Gemini")
+  - Platform-specific intro
   - Identical instruction table (from system/SKILL.md)
   - Identical red lines and file structure
 
