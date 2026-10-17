@@ -180,6 +180,31 @@ TEMPLATE = """# LLM Wiki 知识副驾
 
 重新生成：`python scripts/build_adapters.py`
 
+## 输入入口（先判断用户给的是什么）
+
+| 用户给的 | 怎么处理 |
+|---|---|
+| 网页链接（文章/博客/公众号/知乎等） | 抓正文 → 转 Markdown → 落 `00-INBOX/` |
+| **抖音链接（一条或多条）** | 跑转录脚本 → 落 `00-INBOX/`（见下） |
+| PDF / 图片 / 文档 | 直接放进 `00-INBOX/`，`scripts/convert.py` 会自动转换 |
+| 复制粘贴的文本 | 存成 `.md` 落 `00-INBOX/` |
+
+**抖音链接必须先转录**，不要直接丢进 `#ingest`：
+
+```bash
+# 单条
+<config.integrations.douyin.python> <config.integrations.douyin.transcribe_script> "<URL>"
+
+# 多条（用户一次给了多个链接时务必用批量脚本，不要逐条调用）
+#   把链接写进文本文件，每行一条
+<config.integrations.douyin.python> "<douyin 脚本目录>/douyin_batch.py" --file urls.txt --output-dir "<data_root>/00-INBOX"
+```
+
+批量脚本会：**模型只加载一次**（N 条复用，这是主要提速点）→ 逐条转录 →
+按 `video_id` 记账去重（已转录的跳过，**中断可续跑**）。
+
+所有内容落进 `00-INBOX/` 后，统一走 `#ingest` 编译。
+
 **绝对红线**：
 1. 锚定原文，知识库没有的明确说"未收录"
 2. 解读知识现实意义，禁止分析写作手法

@@ -209,6 +209,18 @@ python scripts/build_adapters.py
 
 Agent 会自己抓正文 → 转 Markdown → 编译 → 建索引。PDF、截图、复制的文字同样处理。
 
+**一次给多个链接也行** —— 一股脑丢过去：
+
+```
+把这几个入库
+https://...
+https://...
+https://...
+```
+
+视频类链接（如抖音）会走转录脚本，**多条会自动用批量模式**（模型只加载一次，比逐条快很多，
+且按视频 ID 记账去重、中断可续跑）。
+
 只有当你要**批量 / 自动化**时，才需要选装下面的集成
 （详见 [`integrations/README.md`](integrations/README.md)，每条命令都可以让 Agent 代劳）：
 
@@ -230,6 +242,27 @@ Agent 会自己抓正文 → 转 Markdown → 编译 → 建索引。PDF、截�
 | 各类密钥 | LLM API key / GitHub token 只能由你提供 |
 
 好消息：**核心链路（编译 → 检索 → 带读 → 沉淀）完全不需要这些。**
+
+---
+
+## 密钥与安全
+
+**你的密钥不会被提交、不会被打印，而且不配也能用。**
+
+| 措施 | 你可以自己验证 |
+|---|---|
+| `config.yaml` / `.env` / `*.local` 都在 `.gitignore` 里，**永远不会进 git** | `cat .gitignore` |
+| 配置模板里只有空占位符，没有真实值 | `grep -i "key\|token\|cookie" config.example.yaml` |
+| **代码从不打印密钥值** —— 自检只显示「是否设置 + 长度」 | `python scripts/llm_api.py` → `api_key: SET(len=51)` |
+| 生成的入口文件与斜杠命令文件里不含密钥 | `grep -i api_key CLAUDE.md AGENTS.md GEMINI.md` |
+| 缺密钥时优雅跳过并明确告知，不报错、不静默失败 | 不配任何 key 直接跑 `#ingest` |
+
+**布局上的保护**：密钥放**引擎目录**的 `config.yaml`（或环境变量），你的知识在**数据目录**。
+所以你分享或备份知识库目录时，**里面没有密钥**。
+
+一旦怀疑泄露，**第一优先是去服务商后台吊销重签** —— 改 git 历史救不了已经泄露出去的那一份。
+
+完整的配置方式、自查清单、共享/服务器环境建议：[`docs/secrets.md`](docs/secrets.md)
 
 ---
 
@@ -270,6 +303,7 @@ Agent 会自己抓正文 → 转 Markdown → 编译 → 建索引。PDF、截�
 | [`docs/quickstart.md`](docs/quickstart.md) | 完整使用指南（从装到用，含常见问题） |
 | [`docs/architecture-flowcharts.md`](docs/architecture-flowcharts.md) | 架构与全链路流程图 |
 | [`docs/pitfalls.md`](docs/pitfalls.md) | **踩坑合集 52 条** —— 建议先扫一遍，能省你几个小时 |
+| [`docs/secrets.md`](docs/secrets.md) | **密钥与安全** —— 密钥怎么配、本项目如何处理、泄露自查清单 |
 | [`integrations/README.md`](integrations/README.md) | 可选集成的安装与授权 |
 | [`demo/`](demo/) | 可跑的示例数据（含检索验证） |
 

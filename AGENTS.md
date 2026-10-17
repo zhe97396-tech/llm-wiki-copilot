@@ -37,6 +37,46 @@
 3. 读取 `system/commands/[指令名].md` 获取详细执行步骤
 4. 回复第一行打印：`[⚡系统拦截：正在严格执行 #xxx 流程...]`
 
+## 斜杠命令（各平台原生入口）
+
+本项目为 **Claude Code** 与 **Gemini CLI** 生成了原生命令，与 `#指令` 完全等价：
+
+| 平台 | 命令位置 | 调用 |
+|---|---|---|
+| Claude Code | `<data_root>/.claude/commands/<name>.md` | `/<name>` |
+| Gemini CLI | `<data_root>/.gemini/commands/<name>.toml` | `/<name>` |
+| Codex CLI | ——（自定义命令已在 0.117.0 移除） | 用 `#指令` 或 skills |
+
+12 个命令与 12 个 `#指令` 一一对应。命令文件只是**转发层**：正文指向
+`system/commands/<name>.md`，真正的步骤定义只有一份，不会产生两份真相。
+
+重新生成：`python scripts/build_adapters.py`
+
+## 输入入口（先判断用户给的是什么）
+
+| 用户给的 | 怎么处理 |
+|---|---|
+| 网页链接（文章/博客/公众号/知乎等） | 抓正文 → 转 Markdown → 落 `00-INBOX/` |
+| **抖音链接（一条或多条）** | 跑转录脚本 → 落 `00-INBOX/`（见下） |
+| PDF / 图片 / 文档 | 直接放进 `00-INBOX/`，`scripts/convert.py` 会自动转换 |
+| 复制粘贴的文本 | 存成 `.md` 落 `00-INBOX/` |
+
+**抖音链接必须先转录**，不要直接丢进 `#ingest`：
+
+```bash
+# 单条
+<config.integrations.douyin.python> <config.integrations.douyin.transcribe_script> "<URL>"
+
+# 多条（用户一次给了多个链接时务必用批量脚本，不要逐条调用）
+#   把链接写进文本文件，每行一条
+<config.integrations.douyin.python> "<douyin 脚本目录>/douyin_batch.py" --file urls.txt --output-dir "<data_root>/00-INBOX"
+```
+
+批量脚本会：**模型只加载一次**（N 条复用，这是主要提速点）→ 逐条转录 →
+按 `video_id` 记账去重（已转录的跳过，**中断可续跑**）。
+
+所有内容落进 `00-INBOX/` 后，统一走 `#ingest` 编译。
+
 **绝对红线**：
 1. 锚定原文，知识库没有的明确说"未收录"
 2. 解读知识现实意义，禁止分析写作手法
