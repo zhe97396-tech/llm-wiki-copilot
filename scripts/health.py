@@ -685,6 +685,16 @@ def main():
 
     # 空库友好提示：用户还没跑初始化向导时，别甩一堆 ERROR 吓人
     if not (DATA_ROOT / "00-INBOX").exists() and not (DATA_ROOT / "wiki").exists():
+        if args.json:
+            # --json 模式下 stdout 必须恒为合法 JSON，否则下游消费会静默拿到脏数据
+            print(json.dumps({
+                "status": "uninitialized",
+                "data_root": str(DATA_ROOT),
+                "pages": 0,
+                "issues": [],
+                "hint": "python setup.py   （或 install.ps1 / install.sh）",
+            }, ensure_ascii=False))
+            return 0
         print("知识库尚未初始化（数据目录里还没有骨架）。")
         print(f"  数据目录：{DATA_ROOT}")
         print("  请先运行初始化向导：python setup.py   （或 install.ps1 / install.sh）")

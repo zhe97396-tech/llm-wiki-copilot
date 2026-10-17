@@ -250,7 +250,24 @@ def rebuild_index() -> None:
 
 # ── Main ───────────────────────────────────────────────────────────────
 
+def _require_deps() -> None:
+    """启动前检查关键依赖：缺失时给人话提示，而不是裸栈回溯。"""
+    missing = []
+    for mod, pkg in (("zvec", "zvec"), ("fastembed", "fastembed")):
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(pkg)
+    if missing:
+        print(f"❌ 缺少依赖：{', '.join(missing)}", file=sys.stderr)
+        print("   安装：python -m pip install -r requirements.txt", file=sys.stderr)
+        print("   Windows 建议用项目 venv：.venv/Scripts/python.exe scripts/embed.py ...", file=sys.stderr)
+        print("   （首次运行还会自动下载约 241MB 向量模型）", file=sys.stderr)
+        sys.exit(2)
+
+
 def main():
+    _require_deps()
     parser = argparse.ArgumentParser(description="Embed wiki pages into Zvec for RAG search")
     parser.add_argument("--incremental", action="store_true",
                         help="Only index pages with changed content")

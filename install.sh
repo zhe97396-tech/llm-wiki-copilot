@@ -81,7 +81,7 @@ echo "[5/5] 初始化配置 ..."
 if [ "$SKIP_MODEL" -eq 0 ]; then
   echo ""
   echo "预下载向量模型（约 241MB，只需一次）..."
-  if "$VENV_PY" -c "import sys; sys.path.insert(0, '$ROOT/scripts'); import zvec_config; zvec_config.get_embedder()" 2>/dev/null; then
+  if "$VENV_PY" -c "import sys; sys.path.insert(0, '$ROOT/scripts'); import zvec_config; zvec_config.load_embedding_model()" 2>/dev/null; then
     echo "  ✓ 模型已缓存"
   else
     echo "  · 跳过（首次检索时自动下载）"

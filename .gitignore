@@ -12,12 +12,18 @@ config.yaml
 *.db-shm
 # demo 的示例内容需要入库，单独放行
 !demo/**
-# ⚠️ 上面的放行会覆盖前面的忽略规则，所以 demo 里的生成物要单独再排除
+# ⚠️ 上面的放行会覆盖前面的忽略规则，所以 demo 里这些要单独再排除：
+# 生成物 + 密钥/数据类文件（保证 README 承诺的「config.yaml / .env 永不进 git」在 demo 下同样成立）
 **/.llm-wiki/
 demo/**/*.db
 demo/**/*.db-wal
 demo/**/*.db-shm
 demo/index/dashboard.html
+demo/config.yaml
+demo/.env
+demo/**/*.local
+demo/vault/
+demo/data/
 
 # ── Python ──
 __pycache__/

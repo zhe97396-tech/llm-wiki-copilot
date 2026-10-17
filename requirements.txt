@@ -10,7 +10,12 @@ jieba>=0.42.1           # MIT —— 中文分词（FTS 索引）
 # 格式转换（#ingest 的 convert.py）
 markitdown>=0.1.5       # MIT, Microsoft —— PDF/DOCX/PPTX/XLSX/EPUB/HTML → Markdown
 pytesseract>=0.3.13     # 图片 OCR（需要系统安装 Tesseract，可选）
+Pillow>=10.0.0          # 图片处理（OCR 路径直接使用）
 
 # 基础设施
 PyYAML>=6.0
 requests>=2.31
+numpy>=1.24             # 向量后处理（embed_texts 直接使用）
+
+# 可选：INBOX 文件监听（watch.py 的连续模式；不加则只有 --once 可用）
+watchdog>=3.0.0

@@ -122,6 +122,11 @@ llm:
   api_key: "{llm.get('api_key', '')}"
   model: "{llm.get('model', '')}"
 
+# ── Agent 适配（可选）──
+# 生成哪些 agent 的原生斜杠命令（与 #指令 等价）。预设：claude / opencode / pi
+adapters:
+  slash: [claude, opencode, pi]
+
 # ── 路径覆盖（留空自动探测）──
 paths:
   tesseract: ""

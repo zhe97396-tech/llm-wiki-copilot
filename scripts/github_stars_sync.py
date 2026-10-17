@@ -390,10 +390,10 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        # 默认：脚本所在Wiki项目的 github-stars/ 目录
-        script_dir = Path(__file__).parent
-        wiki_root = script_dir.parent
-        output_dir = wiki_root / "github-stars"
+        # 默认：知识库数据目录下的 github-stars/
+        # 必须与索引器一致（_utils.GITHUB_STARS_DIR），否则 #stars 入库的内容搜不到
+        from _utils import GITHUB_STARS_DIR
+        output_dir = GITHUB_STARS_DIR
 
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"📁 入库目录：{output_dir}", file=sys.stderr)

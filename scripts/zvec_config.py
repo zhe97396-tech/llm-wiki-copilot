@@ -165,18 +165,6 @@ def get_or_create_collection() -> "zvec.Collection":
     return _cached_collection
 
 
-def _is_zvec_initialized() -> bool:
-    """Check if Zvec has been initialized (can only init once per process)."""
-    try:
-        import zvec as _zvec
-        # Try a no-op that would fail if not initialized
-        # Actually zvec.init() raises RuntimeError if called twice,
-        # so we just try and catch.
-        return False  # Always try init; it's safe if already done
-    except Exception:
-        return False
-
-
 # ── Embedding Helper ───────────────────────────────────────────────────
 
 

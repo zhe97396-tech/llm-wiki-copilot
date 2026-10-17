@@ -30,18 +30,12 @@ from _utils import REPO_ROOT, INBOX_DIR, read_file, write_file
 
 logger = logging.getLogger(__name__)
 
-# ── Proxy config ───────────────────────────────────────────────────────
-# Used by Google Translate API requests. Adjust if needed.
-_PROXY = "http://127.0.0.1:7897"
-
 # ── LLM config (for terminology verification) ─────────────────────────
-# Uses OpenAI-compatible API. Configure via environment variables:
-#   LLM_API_BASE  — API base URL (default: https://api.openai.com/v1)
-#   LLM_API_KEY   — API key
-#   LLM_MODEL     — Model name (default: gpt-4o-mini)
-#
-# 自动回退：环境变量未设置时，从 Hermes config.yaml / auth.json + .env 读取
-# 当前 provider 配置（统一逻辑见 llm_api.py，换 provider 无需改本脚本）
+# 任何 OpenAI 兼容端点都可以。配置来源（优先级从高到低）：
+#   1) 环境变量 LLM_API_BASE / LLM_API_KEY / LLM_MODEL
+#   2) 项目 config.yaml 的 llm 段
+#   3) 宿主 Agent 的配置（统一逻辑见 llm_api.py）
+# 未配置 → 术语校验步骤自动跳过，不报错。
 import os as _os
 from llm_api import load_llm_config as _load_hermes_config
 from llm_api import resolve_api_model as _resolve_api_model
@@ -49,9 +43,14 @@ from llm_api import call_llm as _call_llm
 
 _hermes_base, _hermes_key, _hermes_model = _load_hermes_config()
 
-_LLM_API_BASE = _os.environ.get("LLM_API_BASE", "") or _hermes_base or "https://api.openai.com/v1"
+_LLM_API_BASE = _os.environ.get("LLM_API_BASE", "") or _hermes_base
 _LLM_API_KEY = _os.environ.get("LLM_API_KEY", "") or _hermes_key
-_LLM_MODEL = _os.environ.get("LLM_MODEL", "") or _hermes_model or "gpt-4o-mini"
+_LLM_MODEL = _os.environ.get("LLM_MODEL", "") or _hermes_model
+
+# ── Proxy（可选）──────────────────────────────────────────────────────
+# Google Translate 请求默认直连；需要走代理时设置 HTTP_PROXY / HTTPS_PROXY 环境变量。
+_PROXY = (_os.environ.get("HTTPS_PROXY") or _os.environ.get("https_proxy")
+          or _os.environ.get("HTTP_PROXY") or _os.environ.get("http_proxy") or "")
 
 
 # 解析后的真实 API 模型名（供 /chat/completions 调用使用）
@@ -102,7 +101,7 @@ def translate_to_chinese(text: str, chunk_size: int = 4500) -> str | None:
             resp = requests.get(
                 url,
                 params=params,
-                proxies={"http": _PROXY, "https": _PROXY},
+                proxies=({"http": _PROXY, "https": _PROXY} if _PROXY else None),
                 timeout=30,
             )
             if resp.status_code == 200:
@@ -400,8 +399,8 @@ def _convert_media_placeholder(path: Path) -> str:
         f"# {path.stem}\n\n"
         f"> Source: {path.name} ({media_type})\n\n"
         f"⚠️ {media_type.capitalize()} file — transcription not yet supported.\n"
-        f"Use `#research` with YouTube Full skill for video subtitles, "
-        f"or a Whisper/SenseVoice API for local audio transcription.\n"
+        f"Use `#research` to fetch the subtitles, or wire up a Whisper / SenseVoice "
+        f"pipeline for local transcription (see `integrations/`).\n"
     )
 
 

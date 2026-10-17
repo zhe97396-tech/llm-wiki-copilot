@@ -79,7 +79,7 @@ if ($Yes) { $setupArgs += "--yes" }
 if (-not $SkipModel) {
     Write-Host ""
     Write-Host "预下载向量模型（约 241MB，只需一次）..." -ForegroundColor Yellow
-    & $venvPy -c "import sys; sys.path.insert(0, r'$root\scripts'); import zvec_config; zvec_config.get_embedder()" 2>$null
+    & $venvPy -c "import sys; sys.path.insert(0, r'$root\scripts'); import zvec_config; zvec_config.load_embedding_model()" 2>$null
     if ($LASTEXITCODE -eq 0) { Write-Host "  ✓ 模型已缓存" -ForegroundColor Green }
     else { Write-Host "  · 跳过（首次检索时会自动下载）" -ForegroundColor DarkGray }
 }
