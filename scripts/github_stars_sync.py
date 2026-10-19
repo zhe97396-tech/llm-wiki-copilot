@@ -89,8 +89,9 @@ def _ensure_package() -> bool:
     if probe.returncode == 0:
         return True
     print(
-        "❌ 未安装 ghstars 引擎。安装：pip install ghstars\n"
-        "   （或 uv tool install ghstars；详见 https://github.com/zhe97396-tech/ghstars）",
+        "❌ 未安装 ghstars 引擎。安装：\n"
+        "   pip install \"ghstars @ git+https://github.com/zhe97396-tech/ghstars.git\"\n"
+        "   （或 uv tool install git+https://github.com/zhe97396-tech/ghstars）",
         file=sys.stderr,
     )
     return False

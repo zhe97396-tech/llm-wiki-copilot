@@ -1,7 +1,7 @@
 # GitHub Stars 同步集成
 
 > 把你 GitHub 上 star 过的项目同步进知识库，让它们参与检索与带读。
-> **引擎是独立包**：[ghstars](https://github.com/zhe97396-tech/ghstars)（`pip install ghstars`，已在 `requirements.txt`）。
+> **引擎是独立包**：[ghstars](https://github.com/zhe97396-tech/ghstars)（尚未发 PyPI，用 git 源安装：`pip install "ghstars @ git+https://github.com/zhe97396-tech/ghstars.git"`，也写在 `requirements.txt`）。
 > 本仓库 `scripts/github_stars_sync.py` 只是**薄壳**：把本工程 `config.yaml` 翻译成 ghstars 的配置、调用同步、再更新本工程的向量索引。
 
 ## 配置
