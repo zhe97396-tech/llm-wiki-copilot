@@ -388,7 +388,7 @@ graph LR
         C["convert.py<br/>PDF/DOCX/PPTX → Markdown"]
         B["build_adapters.py<br/>平台适配器构建"]
         D["dashboard.py<br/>看板HTML生成"]
-        GS["github_stars_sync.py<br/>GitHub Stars入库<br/>去重+分类+中文标签"]
+        GS["ghstars CLI（独立包）<br/>GitHub Stars入库<br/>去重+分类+中文标签<br/>scripts/github_stars_sync.py 是薄壳"]
     end
 
     subgraph 数据层["数据文件层"]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LLM API 统一配置与调用模块（convert.py / github_stars_sync.py / integrations 共用）
+"""LLM API 统一配置与调用模块（convert.py / integrations 共用）
 
 设计目标：**换 provider 零改脚本**。所有脚本通过本模块自动识别配置，无需每处维护。
 LLM 是可选的：不配置时，翻译/中文标签等增强步骤自动跳过，核心链路照常运行。

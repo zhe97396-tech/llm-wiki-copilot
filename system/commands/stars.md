@@ -11,7 +11,8 @@ category: core
 
 **执行动作**：运行 `PYTHONPATH="" .venv/Scripts/python.exe scripts/github_stars_sync.py`，自动完成以下流程。
 
-⚠️ **必须用 `.venv/Scripts/python.exe`**：裸 `python` 可能指向宿主环境，**没有 PyYAML** → `llm_api` 读不到配置 → Step 3 的中文标签、LLM 兜底分类**全部静默降级**（只打印一行警告，文件照样入库但 `tags: []`）。跑完可用 `PYTHONPATH="" .venv/Scripts/python.exe scripts/llm_api.py` 自检（应打印 base_url / api_key: SET / model；出现「缺少 PyYAML」告警 = 解释器用错）。
+⚠️ **薄壳架构（引擎 = 独立包 `ghstars`）**：同步/分类/打标签/检索逻辑在 [ghstars](https://github.com/zhe97396-tech/ghstars)，本仓库脚本只做三件事——把 `config.yaml`（`integrations.github_stars` / `llm.*`）翻译成 ghstars 配置、调 `python -m ghstars sync`、有新增时跑 `embed.py --incremental`。参数兼容旧名（`--no-llm-tags` → `--no-llm`，`--output-dir` → `--dir`）。
+⚠️ **仍需 `.venv/Scripts/python.exe`**：薄壳要读本工程 `config.yaml`（PyYAML），且后续 `embed.py` 依赖同 venv 的 zvec/fastembed；裸 `python` 可能指向宿主环境 → 配置识别为空、向量索引失败。自检：`PYTHONPATH="" .venv/Scripts/python.exe -m ghstars doctor`。
 
 1. **Step 1：拉取GitHub API**
    - 获取当前用户（`config.yaml` 里 `integrations.github_stars.username` 配置的用户名）的所有starred项目

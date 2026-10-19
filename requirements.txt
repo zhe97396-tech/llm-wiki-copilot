@@ -12,6 +12,9 @@ markitdown>=0.1.5       # MIT, Microsoft —— PDF/DOCX/PPTX/XLSX/EPUB/HTML →
 pytesseract>=0.3.13     # 图片 OCR（需要系统安装 Tesseract，可选）
 Pillow>=10.0.0          # 图片处理（OCR 路径直接使用）
 
+# GitHub Stars 同步（#stars）：引擎是独立包 ghstars，本仓库只保留薄壳
+ghstars>=0.1.0          # MIT —— 星标拉取/分类/中文标签 + 本地 FTS5 检索
+
 # 基础设施
 PyYAML>=6.0
 requests>=2.31

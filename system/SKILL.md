@@ -53,5 +53,5 @@
 - `scripts/embed.py` — 批量向量化+Zvec入库（fastembed本地ONNX，零API）
 - `scripts/zvec_config.py` — Zvec配置、schema定义、doc ID编码
 - `scripts/_utils.py` — 共享工具函数
-- `scripts/github_stars_sync.py` — GitHub Stars 同步入库脚本
+- `scripts/github_stars_sync.py` — GitHub Stars 同步**薄壳**（引擎 = 独立包 `ghstars`）
 - `github-stars/` — GitHub Stars 仓库目录
