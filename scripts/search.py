@@ -950,9 +950,6 @@ def check_duplicate(page_path: str, threshold: float = 0.08) -> list[dict]:
 
 # ── Main Search Entry Point ───────────────────────────────────────────
 
-STAR_TYPES = {"github-star", "github-star-archived"}
-
-
 def _effective_type(path, declared: "str | None") -> str:
     """文件级扫描路径统一类型：raw/ 下的原文一律算 raw。
 
@@ -989,8 +986,7 @@ def _enforce_type_filters(results: list[dict], exclude_types: set[str] | None) -
 
 
 def search(query: str, top_k: int = 5, backend: str = "zvec",
-           exclude_types: set[str] | None = None, include_stars: bool = False,
-           include_raw: bool = False) -> list[dict]:
+           exclude_types: set[str] | None = None, include_raw: bool = False) -> list[dict]:
     """Full search pipeline: Zvec hybrid → bigram fallback.
 
     Args:
@@ -998,13 +994,11 @@ def search(query: str, top_k: int = 5, backend: str = "zvec",
         top_k: Number of results to return
         backend: "zvec" (default) or "bigram" (forced fallback)
         exclude_types: Set of page types to exclude (e.g. {"github-star"})
-        include_stars: 默认 False。github-stars/ 是"我收藏的仓库"，与自有知识物理隔离，
-            查收藏项目用 ghstars；wiki 检索默认不掺进来（否则"视频制作"5 条全是仓库）。
         include_raw: 默认 False。raw/ 原文层噪音大且与摘要重复，需要原话/案例细节时才开。
+
+    github-stars/ 不在索引里（见 _utils.all_wiki_pages）：收藏仓库由 ghstars 独立检索。
     """
     exclude_types = set(exclude_types or ())
-    if not include_stars:
-        exclude_types |= STAR_TYPES
     if not include_raw:
         exclude_types.add("raw")
     if backend == "bigram":
@@ -1040,8 +1034,6 @@ def main():
                         help="Page type(s) to exclude from results (e.g. --exclude-type github-star). Can be specified multiple times.")
     parser.add_argument("--include-raw", action="store_true",
                         help="把 raw/ 原文层纳入检索（默认排除：原文噪音大且与摘要重复，只在需要原话/细节时开）")
-    parser.add_argument("--include-stars", action="store_true",
-                        help="把 github-stars/ 收藏仓库纳入检索（默认排除：与自有知识物理隔离，查收藏项目请用 ghstars）")
     parser.add_argument("--similar", action="store_true",
                         help="Find documents similar to the given page path")
     parser.add_argument("--check-dup", action="store_true",
@@ -1060,8 +1052,7 @@ def main():
         results = check_duplicate(args.query)
     else:
         results = search(args.query, top_k=args.top, backend=args.backend,
-                         exclude_types=exclude_types,
-                         include_stars=args.include_stars, include_raw=args.include_raw)
+                         exclude_types=exclude_types, include_raw=args.include_raw)
 
     print(json.dumps(results, ensure_ascii=False, indent=2))
 

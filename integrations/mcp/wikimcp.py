@@ -85,7 +85,7 @@ def _scope_filter(results: list[dict], scope: str) -> list[dict]:
 def _exclude_types(scope: str) -> set[str] | None:
     """scope 层面的硬隔离（team 只出知识本体）。
 
-    raw/ 与 github-stars/ 的默认排除已下沉到 search() 内部（include_raw / include_stars）。
+    raw/ 的默认排除已下沉到 search() 内部（include_raw）；github-stars/ 根本不进索引。
     """
     return set(TEAM_TYPES) if scope == "team" else None
 
@@ -116,7 +116,6 @@ def tool_search(args: dict) -> dict:
     s = _mods()["search"]
     results = s.search(query, top_k=top_k,
                        exclude_types=_exclude_types(scope),
-                       include_stars=bool(args.get("include_stars")),
                        include_raw=bool(args.get("include_raw")))
     results = _scope_filter(results, scope)
 
@@ -250,8 +249,8 @@ TOOLS = [
             "检索本地 LLM Wiki 知识库（Zvec 混合检索：jieba 全文 + 向量语义 + RRF，"
             "证据分层排序）。返回概念页/总结页的 id、标题、分类、置信度与摘要片段。"
             "要读全文用 fetch。scope=personal 全库（不含收藏仓库）；scope=team 仅知识本体；"
-            "include_raw=true 才检索 raw/ 原文层（默认关）；include_stars=true 才含 github-stars/"
-            "（默认关，查收藏项目用 ghstars）。"
+            "include_raw=true 才检索 raw/ 原文层（默认关）。"
+            "本库只含个人知识，不含收藏仓库——查 star 过的项目请用 ghstars。"
         ),
         "inputSchema": {
             "type": "object",
@@ -263,9 +262,6 @@ TOOLS = [
                 "include_raw": {"type": "boolean",
                                 "description": "把 raw/ 原文层（转录稿/推文存档）纳入检索，默认 false。"
                                                "需要原话、具体细节、案例原文时才开；日常问答用摘要层更精准。"},
-                "include_stars": {"type": "boolean",
-                                  "description": "把 github-stars/ 收藏仓库纳入检索，默认 false。"
-                                                 "知识本体与收藏仓库物理隔离：查 star 过的项目请用 ghstars 的 stars_search。"},
             },
             "required": ["query"],
         },

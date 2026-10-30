@@ -153,14 +153,20 @@ def extract_wikilinks(content: str) -> list[str]:
 
 # ── Wiki Page Discovery ────────────────────────────────────────────────
 
-def all_wiki_pages() -> list[Path]:
-    """Find all .md files under wiki/, raw/ and github-stars/, excluding metadata files.
+def all_wiki_pages(include_stars: bool = False) -> list[Path]:
+    """Find all .md files under wiki/ and raw/, excluding metadata files.
+
+    ``github-stars/`` 默认不纳入：收藏仓库由 ghstars 独立索引/检索，与知识本体物理隔离
+    （两个 MCP 各干各的，不混索引）。确需时才传 include_stars=True。
 
     ``raw/`` 是原文层（转录稿/推文存档）：进索引是为了能按原话搜到，但检索默认排除
-    （见 search.py 的 --include-raw），只作为"原文证据"存在。
+    （见 search.py 的 include_raw），只作为"原文证据"存在。
     """
+    dirs = [WIKI_DIR, RAW_DIR]
+    if include_stars:
+        dirs.append(GITHUB_STARS_DIR)
     pages = []
-    for search_dir in [WIKI_DIR, RAW_DIR, GITHUB_STARS_DIR]:
+    for search_dir in dirs:
         if not search_dir.exists():
             continue
         for p in search_dir.rglob("*.md"):
