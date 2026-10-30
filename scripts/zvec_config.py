@@ -5,6 +5,7 @@ Centralizes: Zvec schema, embedding model config, doc ID encoding,
 collection lifecycle, and search defaults.
 """
 
+import gc
 from __future__ import annotations
 
 import hashlib
@@ -148,6 +149,20 @@ def _collection_option(zvec_mod, readonly: bool):
         return values
 
 
+def reset_collection() -> None:
+    """释放索引句柄（drop 引用 + gc），让出 Zvec 的跨进程文件锁。
+
+    常驻进程（MCP）只要还持有 Collection，另一个进程的 embed.py 就打不开索引
+    （`zvec.open` 失败 → 退回 create → `path validate failed: … exists`）。
+    必须在每次工具调用结束后调用，否则索引会永久停在旧版本。
+    """
+    global _cached_collection
+    if _cached_collection is None:
+        return
+    _cached_collection = None
+    gc.collect()
+
+
 def get_or_create_collection() -> "zvec.Collection":
     """Get existing Zvec collection or create new one.
 
@@ -180,13 +195,20 @@ def get_or_create_collection() -> "zvec.Collection":
             else:
                 _cached_collection = zvec.open(path=db_path)
             return _cached_collection
-        except Exception:
+        except Exception as exc:
+            hint = str(exc).lower()
             if readonly:
                 raise RuntimeError(
                     f"只读打开 Zvec 索引失败：{db_path}（LLM_WIKI_ZVEC_READONLY=1 时不自动重建，"
                     f"请先运行 scripts/embed.py）"
                 )
-            pass  # Corrupted or wrong schema — rebuild
+            if "exist" in hint or "lock" in hint:
+                raise RuntimeError(
+                    f"打不开 Zvec 索引（{db_path}）：{exc}\n"
+                    f"通常是另一个进程还持有索引句柄（常驻的 wiki MCP 进程）。"
+                    f"让它释放（新版 MCP 已每次调用后释放；旧版需重启客户端/网关）后重跑 embed.py。"
+                ) from exc
+            pass  # 确认损坏/结构不符 → 重建
 
     # Create new collection
     if readonly:

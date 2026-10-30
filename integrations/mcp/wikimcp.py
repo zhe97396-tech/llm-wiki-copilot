@@ -323,6 +323,16 @@ def tool_list_concepts(args: dict) -> dict:
     return {"count": len(items), "concepts": items}
 
 
+def _release_index() -> None:
+    """每次工具调用后释放 Zvec 句柄（否则别的进程 embed 打不开索引，新内容永远搜不到）。"""
+    mod = sys.modules.get("zvec_config")
+    if mod is not None and hasattr(mod, "reset_collection"):
+        try:
+            mod.reset_collection()
+        except Exception:
+            pass
+
+
 def tool_stats(_: dict) -> dict:
     pages = _pages(refresh=True)  # 统计要反映磁盘现状（编译后不必重启进程）
     by_dir: dict[str, int] = {}
@@ -517,6 +527,8 @@ def handle(req: dict) -> None:
                              "text": f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=2)}"}],
                 "isError": True,
             })
+        finally:
+            _release_index()  # 让出文件锁
         return
 
     if msg_id is not None:
