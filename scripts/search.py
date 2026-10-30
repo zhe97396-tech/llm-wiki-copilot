@@ -975,6 +975,11 @@ def search(query: str, top_k: int = 5, backend: str = "zvec", exclude_types: set
 
 
 def main():
+    # Windows 控制台默认 GBK：原文里的 emoji 会让 print 崩掉，强制 UTF-8 + replace
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     parser = argparse.ArgumentParser(
         description="LLM Wiki Search: Zvec hybrid (FTS+Vector+RRF) with bigram fallback")
     parser.add_argument("query", help="Search query (supports CJK and English)")
@@ -983,13 +988,19 @@ def main():
                         help="Search backend: zvec (default) or bigram (fallback)")
     parser.add_argument("--exclude-type", action="append", default=[],
                         help="Page type(s) to exclude from results (e.g. --exclude-type github-star). Can be specified multiple times.")
+    parser.add_argument("--include-raw", action="store_true",
+                        help="把 raw/ 原文层纳入检索（默认排除：原文噪音大且与摘要重复，只在需要原话/细节时开）")
     parser.add_argument("--similar", action="store_true",
                         help="Find documents similar to the given page path")
     parser.add_argument("--check-dup", action="store_true",
                         help="Check if the given page is a semantic duplicate")
     args = parser.parse_args()
 
-    exclude_types = set(args.exclude_type) if args.exclude_type else None
+    exclude_types = set(args.exclude_type) if args.exclude_type else set()
+    # raw/ 原文层默认不参与检索（噪音大、与摘要重复）；需要原话时 --include-raw
+    if not args.include_raw:
+        exclude_types.add("raw")
+    exclude_types = exclude_types or None
 
     if args.similar:
         results = similar_docs(args.query, top_k=args.top)

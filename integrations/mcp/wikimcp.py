@@ -38,6 +38,10 @@ from _utils import DATA_ROOT  # noqa: E402
 
 VAULT = Path(DATA_ROOT).resolve()
 
+# ⚠️ MCP 是常驻进程：必须以只读模式打开 Zvec（不加写锁），否则 embed.py 会因
+# "Can't lock read-write collection" 失败，索引从此无法更新。
+os.environ.setdefault("LLM_WIKI_ZVEC_READONLY", "1")
+
 # ── stdout 保护：协议必须独占 stdout，脚本里的任何 print 都改道 stderr ──
 _PROTO_OUT = os.fdopen(os.dup(1), "wb", buffering=0)
 sys.stdout = sys.stderr
@@ -78,8 +82,12 @@ def _scope_filter(results: list[dict], scope: str) -> list[dict]:
             and any(r["path"].split("wiki/", 1)[-1].startswith(p) for p in TEAM_PREFIXES)]
 
 
-def _exclude_types(scope: str) -> set[str] | None:
-    return TEAM_TYPES if scope == "team" else None
+def _exclude_types(scope: str, include_raw: bool = False) -> set[str] | None:
+    """默认排除 raw/ 原文层（噪音大、与摘要重复）；需要原话时显式 include_raw=true。"""
+    excluded = set(TEAM_TYPES) if scope == "team" else set()
+    if not include_raw:
+        excluded.add("raw")
+    return excluded or None
 
 
 def _frontmatter(path: Path) -> dict:
@@ -106,7 +114,8 @@ def tool_search(args: dict) -> dict:
     scope = (args.get("scope") or "personal").lower()
 
     s = _mods()["search"]
-    results = s.search(query, top_k=top_k, exclude_types=_exclude_types(scope))
+    results = s.search(query, top_k=top_k,
+                       exclude_types=_exclude_types(scope, bool(args.get("include_raw"))))
     results = _scope_filter(results, scope)
 
     out = []
@@ -238,7 +247,8 @@ TOOLS = [
         "description": (
             "检索本地 LLM Wiki 知识库（Zvec 混合检索：jieba 全文 + 向量语义 + RRF，"
             "证据分层排序）。返回概念页/总结页的 id、标题、分类、置信度与摘要片段。"
-            "要读全文用 fetch。scope=personal 全库；scope=team 仅知识本体。"
+            "要读全文用 fetch。scope=personal 全库；scope=team 仅知识本体；"
+            "include_raw=true 才检索 raw/ 原文层（默认关）。"
         ),
         "inputSchema": {
             "type": "object",
@@ -247,6 +257,9 @@ TOOLS = [
                 "top_k": {"type": "integer", "description": "返回条数，1-20，默认 5"},
                 "scope": {"type": "string", "enum": ["personal", "team"],
                           "description": "检索范围，默认 personal（全库）"},
+                "include_raw": {"type": "boolean",
+                                "description": "把 raw/ 原文层（转录稿/推文存档）纳入检索，默认 false。"
+                                               "需要原话、具体细节、案例原文时才开；日常问答用摘要层更精准。"},
             },
             "required": ["query"],
         },

@@ -154,9 +154,13 @@ def extract_wikilinks(content: str) -> list[str]:
 # ── Wiki Page Discovery ────────────────────────────────────────────────
 
 def all_wiki_pages() -> list[Path]:
-    """Find all .md files under wiki/ and github-stars/, excluding metadata files."""
+    """Find all .md files under wiki/, raw/ and github-stars/, excluding metadata files.
+
+    ``raw/`` 是原文层（转录稿/推文存档）：进索引是为了能按原话搜到，但检索默认排除
+    （见 search.py 的 --include-raw），只作为"原文证据"存在。
+    """
     pages = []
-    for search_dir in [WIKI_DIR, GITHUB_STARS_DIR]:
+    for search_dir in [WIKI_DIR, RAW_DIR, GITHUB_STARS_DIR]:
         if not search_dir.exists():
             continue
         for p in search_dir.rglob("*.md"):
@@ -169,12 +173,14 @@ def all_wiki_pages() -> list[Path]:
 def page_id(path: Path) -> str:
     """Convert a wiki page path to a relative ID like 'concepts/注意力经济' or 'github-stars/ai-agents/alibaba-page-agent'.
 
+    raw/ 下的原文返回 'raw/<平台>/<文件名>'。
     """
-    for base_dir in [WIKI_DIR, GITHUB_STARS_DIR]:
+    for base_dir in [WIKI_DIR, RAW_DIR, GITHUB_STARS_DIR]:
         try:
-            return str(path.relative_to(base_dir)).replace("\\", "/").replace(".md", "")
+            rel = str(path.relative_to(base_dir)).replace("\\", "/").replace(".md", "")
         except ValueError:
             continue
+        return f"raw/{rel}" if base_dir == RAW_DIR else rel
     return path.stem
 
 

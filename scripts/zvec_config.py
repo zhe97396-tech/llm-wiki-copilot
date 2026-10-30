@@ -129,14 +129,36 @@ def _ensure_zvec_init():
 _cached_collection = None
 
 
+def _readonly_requested() -> bool:
+    """长期存活的只读进程（MCP 服务等）用：`LLM_WIKI_ZVEC_READONLY=1`。
+
+    Zvec 的写锁是**跨进程独占**的（DB 目录下的 LOCK 文件）：任何进程用写模式打开索引，
+    `embed.py` 就会失败（`Can't lock read-write collection`）。MCP 是常驻子进程，
+    必须只读打开，否则一用 MCP 索引就再也没法更新。
+    """
+    return _os.environ.get("LLM_WIKI_ZVEC_READONLY", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _collection_option(zvec_mod, readonly: bool):
+    """zvec.open 的 option 必须是 CollectionOption 实例（传 dict 会 TypeError）。"""
+    values = {"enable_mmap": 1, "read_only": 1 if readonly else 0}
+    try:
+        return zvec_mod.CollectionOption(**values)
+    except Exception:
+        return values
+
+
 def get_or_create_collection() -> "zvec.Collection":
     """Get existing Zvec collection or create new one.
 
     Returns a cached instance if one is already open in this process,
     avoiding Zvec's file-lock conflict on repeated opens.
+
+    只读模式（`LLM_WIKI_ZVEC_READONLY=1`）下永不创建、不加写锁。
     """
     global _cached_collection
     import zvec
+    readonly = _readonly_requested()
 
     if _cached_collection is not None:
         try:
@@ -153,12 +175,24 @@ def get_or_create_collection() -> "zvec.Collection":
     # Try to open existing collection first
     if ZVEC_DB_DIR.exists() and any(ZVEC_DB_DIR.iterdir()):
         try:
-            _cached_collection = zvec.open(path=db_path)
+            if readonly:
+                _cached_collection = zvec.open(path=db_path, option=_collection_option(zvec, readonly=True))
+            else:
+                _cached_collection = zvec.open(path=db_path)
             return _cached_collection
         except Exception:
+            if readonly:
+                raise RuntimeError(
+                    f"只读打开 Zvec 索引失败：{db_path}（LLM_WIKI_ZVEC_READONLY=1 时不自动重建，"
+                    f"请先运行 scripts/embed.py）"
+                )
             pass  # Corrupted or wrong schema — rebuild
 
     # Create new collection
+    if readonly:
+        raise RuntimeError(
+            f"只读模式（LLM_WIKI_ZVEC_READONLY=1）不会创建索引：{db_path} 不存在；请先运行 scripts/embed.py"
+        )
     ZVEC_DB_DIR.parent.mkdir(parents=True, exist_ok=True)
     schema = get_zvec_schema()
     _cached_collection = zvec.create_and_open(path=db_path, schema=schema)

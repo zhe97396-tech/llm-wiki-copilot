@@ -24,7 +24,7 @@ from pathlib import Path
 # Bootstrap
 sys.path.insert(0, str(Path(__file__).parent))
 from _utils import (
-    DATA_ROOT, WIKI_DIR, DATA_DIR,
+    DATA_ROOT, WIKI_DIR, RAW_DIR, DATA_DIR,
     read_file, write_file, strip_frontmatter,
     extract_frontmatter_field, all_wiki_pages, page_id, page_name, sha256,
     ensure_data_dir,
@@ -76,6 +76,9 @@ def extract_page_data(page_path: Path) -> dict | None:
     title = extract_frontmatter_field(content, "title") or page_name(page_path)
     category = extract_frontmatter_field(content, "category") or ""
     page_type = extract_frontmatter_field(content, "type") or "source"
+    # raw/ 是原文层，统一标 raw：便于检索时默认排除、需要时显式纳入
+    if RAW_DIR in page_path.parents:
+        page_type = "raw"
     status = extract_frontmatter_field(content, "status") or ""
 
     # source_path: relative path from repo root (for reverse lookup)
@@ -267,6 +270,11 @@ def _require_deps() -> None:
 
 
 def main():
+    # Windows 控制台默认 GBK：原文里的 emoji 会让 print 崩掉，强制 UTF-8 + replace
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     _require_deps()
     parser = argparse.ArgumentParser(description="Embed wiki pages into Zvec for RAG search")
     parser.add_argument("--incremental", action="store_true",
