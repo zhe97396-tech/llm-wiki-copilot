@@ -34,7 +34,7 @@ from pathlib import Path
 # Bootstrap shared utilities
 sys.path.insert(0, str(Path(__file__).parent))
 from _utils import (
-    DATA_ROOT, WIKI_DIR, GITHUB_STARS_DIR,
+    DATA_ROOT, WIKI_DIR, RAW_DIR, GITHUB_STARS_DIR,
     read_file, strip_frontmatter, extract_frontmatter_field,
     extract_wikilinks, all_wiki_pages, page_id, page_name,
     has_cjk, cjk_bigrams, get_neighbors,
@@ -950,7 +950,47 @@ def check_duplicate(page_path: str, threshold: float = 0.08) -> list[dict]:
 
 # ── Main Search Entry Point ───────────────────────────────────────────
 
-def search(query: str, top_k: int = 5, backend: str = "zvec", exclude_types: set[str] | None = None) -> list[dict]:
+STAR_TYPES = {"github-star", "github-star-archived"}
+
+
+def _effective_type(path, declared: "str | None") -> str:
+    """文件级扫描路径统一类型：raw/ 下的原文一律算 raw。
+
+    否则它 frontmatter 里写的 type: note 会绕过 exclude_types={'raw'} 混进默认检索。
+    """
+    try:
+        if RAW_DIR in Path(path).resolve().parents:
+            return "raw"
+    except Exception:
+        pass
+    return declared or "source"
+
+
+def _enforce_type_filters(results: list[dict], exclude_types: set[str] | None) -> list[dict]:
+    """最后一道闸：路径即真相。
+
+    raw/ 与 github-stars/ 的身份只靠路径判定（raw 页 frontmatter 写的是 type: note；
+    收藏仓库 page_id 不带 github-stars/ 前缀）。新增的结果构造路径自动受保护。
+    """
+    if not exclude_types:
+        return results
+    out = []
+    for r in results:
+        pid = str(r.get("page_id") or "")
+        path = str(r.get("path") or "")
+        if pid.startswith("raw/") or path.startswith("raw/"):
+            r["type"] = "raw"
+        elif path.startswith("github-stars/") or pid.startswith("github-stars/"):
+            r["type"] = r.get("type") or "github-star"
+        if r.get("type") in exclude_types:
+            continue
+        out.append(r)
+    return out
+
+
+def search(query: str, top_k: int = 5, backend: str = "zvec",
+           exclude_types: set[str] | None = None, include_stars: bool = False,
+           include_raw: bool = False) -> list[dict]:
     """Full search pipeline: Zvec hybrid → bigram fallback.
 
     Args:
@@ -958,20 +998,30 @@ def search(query: str, top_k: int = 5, backend: str = "zvec", exclude_types: set
         top_k: Number of results to return
         backend: "zvec" (default) or "bigram" (forced fallback)
         exclude_types: Set of page types to exclude (e.g. {"github-star"})
+        include_stars: 默认 False。github-stars/ 是"我收藏的仓库"，与自有知识物理隔离，
+            查收藏项目用 ghstars；wiki 检索默认不掺进来（否则"视频制作"5 条全是仓库）。
+        include_raw: 默认 False。raw/ 原文层噪音大且与摘要重复，需要原话/案例细节时才开。
     """
+    exclude_types = set(exclude_types or ())
+    if not include_stars:
+        exclude_types |= STAR_TYPES
+    if not include_raw:
+        exclude_types.add("raw")
     if backend == "bigram":
         candidates = bigram_search(query, top_k=10, exclude_types=exclude_types)
-        return _expand_with_neighbors(candidates, top_k=top_k + 5, exclude_types=exclude_types)[:top_k]
+        results = _expand_with_neighbors(candidates, top_k=top_k + 5, exclude_types=exclude_types)[:top_k]
+        return _enforce_type_filters(results, exclude_types)
 
     # Try Zvec first
     try:
         if not ZVEC_DB_DIR.exists() or not any(ZVEC_DB_DIR.iterdir()):
             raise RuntimeError("Zvec database not found")
-        return zvec_search(query, top_k=top_k, exclude_types=exclude_types)
+        results = zvec_search(query, top_k=top_k, exclude_types=exclude_types)
     except Exception as e:
         print(f"[search] Zvec failed: {e}, falling back to bigram", file=sys.stderr)
         candidates = bigram_search(query, top_k=10, exclude_types=exclude_types)
-        return _expand_with_neighbors(candidates, top_k=top_k + 5, exclude_types=exclude_types)[:top_k]
+        results = _expand_with_neighbors(candidates, top_k=top_k + 5, exclude_types=exclude_types)[:top_k]
+    return _enforce_type_filters(results, exclude_types)
 
 
 def main():
@@ -990,6 +1040,8 @@ def main():
                         help="Page type(s) to exclude from results (e.g. --exclude-type github-star). Can be specified multiple times.")
     parser.add_argument("--include-raw", action="store_true",
                         help="把 raw/ 原文层纳入检索（默认排除：原文噪音大且与摘要重复，只在需要原话/细节时开）")
+    parser.add_argument("--include-stars", action="store_true",
+                        help="把 github-stars/ 收藏仓库纳入检索（默认排除：与自有知识物理隔离，查收藏项目请用 ghstars）")
     parser.add_argument("--similar", action="store_true",
                         help="Find documents similar to the given page path")
     parser.add_argument("--check-dup", action="store_true",
@@ -1007,7 +1059,9 @@ def main():
     elif args.check_dup:
         results = check_duplicate(args.query)
     else:
-        results = search(args.query, top_k=args.top, backend=args.backend, exclude_types=exclude_types)
+        results = search(args.query, top_k=args.top, backend=args.backend,
+                         exclude_types=exclude_types,
+                         include_stars=args.include_stars, include_raw=args.include_raw)
 
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
