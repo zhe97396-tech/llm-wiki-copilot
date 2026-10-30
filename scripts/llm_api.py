@@ -272,6 +272,11 @@ def call_llm(prompt: str, max_tokens: int = 8192, temperature: float = 0.1,
 
 
 if __name__ == "__main__":
+    # Windows 管道/控制台默认 GBK：emoji 会让 print 崩掉（工作其实已完成）
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     # 自检：打印识别到的配置（不打印 key 明文）
     b, k, m = load_llm_config()
     print(f"base_url: {b}")

@@ -218,6 +218,11 @@ def embed_texts(model, texts: list[str]) -> list[list[float]]:
 # ── Self-test ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # Windows 管道/控制台默认 GBK：emoji 会让 print 崩掉（工作其实已完成）
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     print("=== zvec_config.py self-test ===")
     print(f"ZVEC_DB_DIR: {ZVEC_DB_DIR}")
     print(f"EMBEDDING_MODEL: {EMBEDDING_MODEL}")

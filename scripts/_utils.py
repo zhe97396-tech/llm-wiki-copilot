@@ -308,6 +308,11 @@ def mark_processed(filename: str, content_hash: str) -> None:
 # ── Main (self-test) ──────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # Windows 管道/控制台默认 GBK：emoji 会让 print 崩掉（工作其实已完成）
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     print("=== _utils.py self-test ===")
     print(f"REPO_ROOT: {REPO_ROOT}")
     print(f"WIKI_DIR exists: {WIKI_DIR.exists()}")
