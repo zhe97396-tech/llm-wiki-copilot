@@ -172,6 +172,10 @@ def check_broken_links(pages: list[Path]) -> list[dict]:
         content = read_file(p)
         links = extract_wikilinks(content)
         for link in links:
+            # 社媒作者名常写成 [[@handle]]（raw/twitter、00-INBOX 的 frontmatter），
+            # 这是元数据不是页面引用，当断链处理会淹没真问题（曾把索引落后盖在 36 条噪音下）。
+            if link.split("/")[-1].startswith("@"):
+                continue
             # 带路径双链 [[raw/douyin/xxx]] 的 basename 也要能匹配（page_id 对 raw 返回 stem）
             link_basename = link.split("/")[-1]
             if link not in actual_names and link not in actual_ids and link_basename not in actual_names:
