@@ -199,8 +199,15 @@ def index_pages(page_paths: list[Path], incremental: bool = False) -> dict:
 
 
 def index_single_file(file_path: str) -> dict:
-    """Index a single wiki page by path."""
-    p = Path(file_path)
+    """Index a single wiki page by path.
+
+    必须 resolve：extract_page_data 用 relative_to(REPO_ROOT) 算 source_path，
+    传相对路径会 ValueError（只回 1 error、退出码仍 0）——
+    表现就是「编译完了，但 MCP 搜不到新内容」。
+    """
+    p = Path(file_path).expanduser()
+    if not p.is_absolute():
+        p = (Path.cwd() / p).resolve()
     if not p.exists():
         print(f"File not found: {file_path}", file=sys.stderr)
         return {"indexed": 0, "updated": 0, "skipped": 0, "errors": 1}

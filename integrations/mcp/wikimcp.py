@@ -77,6 +77,14 @@ def _mods():
     return _state
 
 
+def _pages(refresh: bool = False) -> dict[str, Path]:
+    """页面 id → 路径。缓存只在进程内；编译出新页面后必须能刷新，否则 fetch 打不开。"""
+    mods = _mods()
+    if refresh:
+        mods["pages"] = {mods["utils"].page_id(p): p for p in mods["utils"].all_wiki_pages()}
+    return mods["pages"]
+
+
 def _scope_filter(results: list[dict], scope: str) -> list[dict]:
     """team 范围再做一次路径白名单兜底（类型过滤之外的双保险）。"""
     if scope != "team":
@@ -242,8 +250,10 @@ def tool_fetch(args: dict) -> dict:
     include_raw = bool(args.get("include_raw"))
 
     # 1) 索引内页面（concepts/xxx、summaries/分类/xxx …）
-    mods = _mods()
-    path = mods["pages"].get(pid.replace(".md", ""))
+    key = pid.replace(".md", "")
+    path = _pages().get(key)
+    if path is None:  # 进程启动后才编译出来的页面：重扫一次再找
+        path = _pages(refresh=True).get(key)
 
     # 2) 允许显式取 raw/（原文层，按路径直达）
     if path is None and include_raw and pid.startswith("raw/"):
@@ -314,8 +324,7 @@ def tool_list_concepts(args: dict) -> dict:
 
 
 def tool_stats(_: dict) -> dict:
-    mods = _mods()
-    pages = mods["pages"]
+    pages = _pages(refresh=True)  # 统计要反映磁盘现状（编译后不必重启进程）
     by_dir: dict[str, int] = {}
     for _pid, path in pages.items():
         rel = str(path.relative_to(VAULT)).replace("\\", "/")
