@@ -5,8 +5,9 @@ Centralizes: Zvec schema, embedding model config, doc ID encoding,
 collection lifecycle, and search defaults.
 """
 
-import gc
 from __future__ import annotations
+
+import gc
 
 import hashlib
 from pathlib import Path
