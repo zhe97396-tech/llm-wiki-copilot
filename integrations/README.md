@@ -125,6 +125,14 @@ integrations:
 
 ---
 
+### mcp（把知识库开放给其他 Agent，只读）
+
+方向和其他集成相反：不采集内容，而是把**已有**知识库通过 MCP 暴露给
+Claude Code / Cursor / Codex / Cline / Hermes，让它们直接 `search` / `fetch` / `ask`。
+
+无需安装（Python 标准库 + 现有的 embed venv），只需在客户端里加一段 JSON 配置。
+详见 [`mcp/README.md`](mcp/README.md)。
+
 ## 依赖与致谢
 
 本项目的核心能力站在这些开源项目肩上。**仓库内不含它们的代码**：

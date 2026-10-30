@@ -236,6 +236,15 @@ python scripts/build_adapters.py
 
 ---
 
+### MCP：把知识库暴露成工具（只读）
+
+除了指令包，还可以用 **MCP** 把知识库直接挂进任意支持 MCP 的 Agent
+（Claude Code / Cursor / Codex / Cline / Hermes）。挂上之后 Agent 不必先 `#search`，
+直接调用 `search` / `fetch` / `list_concepts` / `stats` / `ask` 五个只读工具。
+
+stdio 传输：无端口、无守护进程、无鉴权，客户端退出进程就消失。配置与自测见
+[`integrations/mcp/README.md`](integrations/mcp/README.md)。
+
 ## 采集：把链接发给它就够了
 
 默认情况下你**不需要装任何采集工具**：

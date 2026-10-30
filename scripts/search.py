@@ -71,6 +71,30 @@ SOURCE_TIER = {
 
 SNIPPET_MAX_LEN = 200
 
+# ── Evidence Tiering (2026-10-26 修复排序 bug) ────────────────────────
+# 历史 bug：双链邻居一律 score = seed*0.3 + WEIGHT_NEIGHBOR(10)，而语义直接命中
+# 的 RRF 分只有 ~0.03。全部结果按 score 全局排序 → 扩展结果永远压在直接命中之上，
+# 正确文档被挤到第 4-5 位甚至截断丢弃（实测 18 条评测 top-1 命中 0/18）。
+# 修复：不跨来源比较分数，按“证据层级”排序 —— 直接命中 > 关键词兜底 > 关联扩展。
+TIER_DIRECT = 0      # Zvec FTS+向量 RRF 直接命中
+TIER_KEYWORD = 1     # 关键词兜底（文件名/标题精确匹配）
+TIER_EXPANDED = 2    # 双链邻居 / 实体搭桥扩展（补充证据，不占主结果位）
+
+
+def rank_tier(item: dict) -> int:
+    """判定结果的证据层级（0 最好）。"""
+    if item.get("expanded_from"):
+        return TIER_EXPANDED
+    if item.get("backend") == "keyword_fallback":
+        return TIER_KEYWORD
+    return TIER_DIRECT
+
+
+def rank_key(item: dict) -> tuple[int, float]:
+    """稳定排序键：先按证据层级，再按同层级内原始分数降序。"""
+    return (rank_tier(item), -float(item.get("score") or 0.0))
+
+
 # ── P0: Soft Segmentation (Score Cliff Detection) ─────────────────────
 # When adjacent search results show a sharp score drop, the results before
 # the cliff are "high confidence" and after are "low confidence".
@@ -135,7 +159,6 @@ def zvec_search(query: str, top_k: int = 5, exclude_types: set[str] | None = Non
     # Step 3: Map Zvec results to wiki file paths
     exclude = exclude_types or set()
     mapped = []
-    direct_hits = []  # Track direct hits separately for guarantee
     for r in results:
         r_type = r.fields.get(FIELD_TYPE, "source")
         if r_type in exclude:
@@ -163,7 +186,6 @@ def zvec_search(query: str, top_k: int = 5, exclude_types: set[str] | None = Non
             "backend": "zvec",
         }
         mapped.append(item)
-        direct_hits.append(item)
 
     # Step 4: Wikilink neighbor expansion
     if mapped:
@@ -180,33 +202,16 @@ def zvec_search(query: str, top_k: int = 5, exclude_types: set[str] | None = Non
         supplements = _keyword_fallback(query, mapped, top_k=KEYWORD_FALLBACK_TOP_K, exclude_types=exclude_types)
         if supplements:
             mapped.extend(supplements)
-            mapped.sort(key=lambda x: x["score"], reverse=True)
+            mapped.sort(key=rank_key)
 
     # Step 7 (P3): Diversity control — penalize over-represented directories
     if len(mapped) > 1:
         mapped = _diversify_results(mapped)
 
-    # Step 8: Ensure top direct hits are not completely squeezed out by expanded results.
-    # Expanded results (neighbors/entity_bridge) have inflated scores (~10+)
-    # vs direct Zvec hits (~0.01-0.02). Guarantee that the TOP direct hits
-    # (the most relevant ones) appear in the final results.
+    # Step 8 (2026-10-26 简化): 分层排序后直接命中原生就在列表头部，
+    # 不再需要“从尾部替换扩展结果”的补丁逻辑（原逻辑会把高相关直接命中
+    # 塞到第 4-5 位，是排序 bug 的另一半）。
     result = mapped[:top_k]
-    direct_in_result = sum(1 for r in result if not r.get("expanded_from") and r.get("backend") != "keyword_fallback")
-    min_direct = max(top_k // 2, 2)
-    if direct_in_result < min_direct and direct_hits:
-        # Only promote the TOP direct hits (highest-scoring = most relevant)
-        # Not all direct hits — some may be low-relevance
-        result_pids = {r["page_id"] for r in result}
-        # Take the best direct hits that aren't already in result
-        missing_direct = [d for d in direct_hits if d["page_id"] not in result_pids]
-        # Sort by score descending to get the most relevant ones
-        missing_direct.sort(key=lambda x: x["score"], reverse=True)
-        for d in missing_direct[:min_direct - direct_in_result]:
-            for i in range(len(result) - 1, -1, -1):
-                if result[i].get("expanded_from") or result[i].get("backend") == "keyword_fallback":
-                    result[i] = d
-                    result_pids.add(d["page_id"])
-                    break
 
     # Step 9 (P0): Soft segmentation — label confidence levels
     # Must run AFTER Step 8 so that all final results get labeled
@@ -273,27 +278,21 @@ def _apply_confidence_labels(results: list[dict]) -> list[dict]:
     if not results:
         return results
 
-    # Separate direct hits from expanded results
-    direct_hits = [r for r in results if not r.get("expanded_from")]
-    expanded = [r for r in results if r.get("expanded_from")]
+    # 按证据层级分组打分（2026-10-26）：不同来源分数尺度不同（RRF ~0.03，
+    # 关键词兜底 1-200，扩展 10+），必须各自判悬崖，不能用一条曲线混算。
+    for tier in (TIER_DIRECT, TIER_KEYWORD):
+        group = [r for r in results if rank_tier(r) == tier]
+        cliff_idx = detect_score_cliff(group)
+        for i, r in enumerate(group):
+            r["confidence"] = "low" if (cliff_idx is not None and i >= cliff_idx) else "high"
 
-    # Detect cliff within direct hits only
-    cliff_idx = detect_score_cliff(direct_hits)
-
-    for i, r in enumerate(direct_hits):
-        if cliff_idx is not None and i >= cliff_idx:
-            r["confidence"] = "low"
-        else:
-            r["confidence"] = "high"
-
-    # Detect cliff within expanded results separately
+    expanded = [r for r in results if rank_tier(r) == TIER_EXPANDED]
     exp_cliff_idx = detect_score_cliff(expanded)
     for i, r in enumerate(expanded):
         if exp_cliff_idx is not None and i >= exp_cliff_idx:
             r["confidence"] = "low"
         else:
-            # Expanded results are supplementary — label as "medium"
-            # (better than "low" if they score well within their own group)
+            # 扩展结果是补充证据，不占主结果位，最高只能给 medium
             r["confidence"] = "medium"
 
     return results
@@ -507,8 +506,8 @@ def _diversify_results(results: list[dict], max_same_dir: int = DIVERSITY_MAX_SA
             r["score"] = round(r["score"] * penalty, 4)
             r["diversity_penalized"] = True
 
-    # Re-sort after penalty
-    results.sort(key=lambda x: x["score"], reverse=True)
+    # Re-sort after penalty (分层排序，避免多样性惩罚打乱证据层级)
+    results.sort(key=rank_key)
     return results
 
 
@@ -706,7 +705,7 @@ def _expand_with_neighbors(candidates: list[dict], top_k: int = 15, exclude_type
             existing_ids.add(nid)
 
     all_results = candidates + neighbor_additions
-    all_results.sort(key=lambda x: x["score"], reverse=True)
+    all_results.sort(key=rank_key)  # 分层排序：直接命中 > 扩展（2026-10-26 修复）
     return all_results[:top_k]
 
 
@@ -785,7 +784,7 @@ def _expand_with_entity_bridge(candidates: list[dict], top_k: int = 15, exclude_
         existing_ids.add(r["page_id"])
 
     all_results = candidates + bridge_additions
-    all_results.sort(key=lambda x: x["score"], reverse=True)
+    all_results.sort(key=rank_key)  # 分层排序：直接命中 > 扩展（2026-10-26 修复）
     return all_results[:top_k]
 
 
