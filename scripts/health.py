@@ -568,6 +568,76 @@ def check_zvec_ghosts() -> list[dict]:
 # ── Run All Checks ─────────────────────────────────────────────────────
 
 # Map check names to their functions (for --check flag)
+def check_zvec_freshness(pages: list[Path]) -> list[dict]:
+    """Zvec 索引是否落后于 Markdown（上次 embed 时间 + 文档数对账）。
+
+    背景：索引曾因写锁冲突静默停更两天没人发现。索引不新 = 检索到的是旧知识。
+    阈值：≥3 篇未索引，或 ≥1 篇且超 24h 未更新，或索引文档数少于页面数 → warning。
+    """
+    import time as _time
+    from datetime import datetime as _dt
+
+    try:
+        sys.path.insert(0, str(Path(__file__).parent))
+        from zvec_config import ZVEC_DB_DIR
+    except Exception as exc:
+        return [{"check": "zvec_freshness", "path": "", "severity": "warning",
+                 "message": f"无法检查索引新鲜度：{exc}"}]
+
+    idx, source, docs = 0.0, "index mtime", None
+    try:  # 用 _utils 的 DATA_DIR，demo/自定义数据目录才找得到标记
+        from _utils import DATA_DIR as _DATA_DIR
+        marker = Path(_DATA_DIR) / "last_embed.json"
+    except Exception:
+        marker = Path(__file__).parent.parent / ".llm-wiki" / "last_embed.json"
+    if marker.exists():
+        try:
+            import json as _json
+            d = _json.loads(marker.read_text(encoding="utf-8"))
+            idx = float(d.get("ts") or 0)
+            docs = d.get("docs")
+            if idx:
+                source = "last_embed.json"
+        except Exception:
+            idx = 0.0
+    if not idx and ZVEC_DB_DIR.exists():
+        for x in ZVEC_DB_DIR.rglob("*"):
+            try:
+                if x.is_file() and x.name != "LOCK":
+                    idx = max(idx, x.stat().st_mtime)
+            except OSError:
+                pass
+    if not idx:
+        return [{"check": "zvec_freshness", "path": "", "severity": "warning",
+                 "message": "索引不存在或为空 — 跑 `python scripts/embed.py --rebuild`"}]
+
+    newer = []
+    for x in pages:
+        try:
+            if x.stat().st_mtime > idx + 60:
+                newer.append(x.name)
+        except OSError:
+            pass
+    stamp = _dt.fromtimestamp(idx).strftime("%Y-%m-%d %H:%M")
+    stale = len(newer) >= 3 or (len(newer) >= 1 and (_time.time() - idx) > 86400)
+    missing = None
+    if isinstance(docs, int) and docs >= 0:
+        missing = max(0, len(pages) - docs)
+        if missing:
+            stale = True
+    if stale:
+        bits = []
+        if missing:
+            bits.append(f"索引 {docs} 篇 / 页面 {len(pages)} 篇（少 {missing} 篇）")
+        if newer:
+            bits.append(f"{len(newer)} 篇比索引新")
+        return [{"check": "zvec_freshness", "path": "", "severity": "warning",
+                 "message": f"索引落后（更新于 {stamp}）：" + "；".join(bits) +
+                            " — 跑 `python scripts/embed.py --incremental`"}]
+    return [{"check": "zvec_freshness", "path": "", "severity": "info",
+             "message": f"索引新鲜（{source} · 更新于 {stamp}，{len(newer)} 篇待索引，共 {len(pages)} 篇）"}]
+
+
 CHECK_FUNCTIONS = {
     "empty_stub": lambda pages: check_empty_files(pages),
     "index_sync": lambda pages: check_index_sync(pages),
@@ -577,6 +647,7 @@ CHECK_FUNCTIONS = {
     "category_routing": lambda pages: check_category_routing(),  # ignores pages param
     "entity_index": lambda pages: check_entity_index(),  # entity index consistency
     "zvec_ghost": lambda pages: check_zvec_ghosts(),  # zvec ghost index check
+    "zvec_freshness": lambda pages: check_zvec_freshness(pages),  # 索引是否落后于文件
 }
 
 

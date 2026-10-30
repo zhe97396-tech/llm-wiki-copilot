@@ -25,8 +25,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
+import time
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]   # integrations/mcp/wikimcp.py → 仓库根
@@ -139,6 +142,99 @@ def tool_search(args: dict) -> dict:
     return {"query": query, "scope": scope, "count": len(out), "results": out}
 
 
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+
+
+def _outline(text: str, per_section: int = 90, max_chars: int = 900) -> str:
+    """把整篇压成「标题 + 每节首句」的大纲：先判相关性，再决定要不要取全文。"""
+    lines = text.splitlines()
+    if lines and lines[0].strip() == "---":
+        for i, ln in enumerate(lines[1:], 1):
+            if ln.strip() == "---":
+                lines = lines[i + 1:]
+                break
+    out: list[str] = []
+    take = True
+    for ln in lines:
+        s = ln.strip()
+        if not s:
+            continue
+        m = _HEADING_RE.match(s)
+        if m:
+            out.append(f"{m.group(1)} {m.group(2)}")
+            take = True
+            continue
+        if not take:
+            continue
+        if s.startswith((">", "|", "!", "```")):
+            continue
+        out.append("  " + s[:per_section] + ("…" if len(s) > per_section else ""))
+        take = False
+    if len(out) < 3:  # 无标题的短页：退化成前几行
+        out = ["  " + x.strip()[:per_section] for x in lines if x.strip()][:3]
+    text_out = "\n".join(out)
+    if len(text_out) > max_chars:
+        text_out = text_out[:max_chars].rstrip() + "\n…（大纲已截断）"
+    return text_out
+
+
+def _index_stamp() -> tuple[float, str, int | None]:
+    """索引「跑完的时间」：优先读 embed 写的标记文件，退化到索引文件 mtime（只读打开会刷新 mtime）。"""
+    marker = VAULT / ".llm-wiki" / "last_embed.json"
+    if marker.exists():
+        try:
+            d = json.loads(marker.read_text(encoding="utf-8"))
+            ts = float(d.get("ts") or 0)
+            if ts:
+                return ts, "last_embed.json", d.get("docs")
+        except Exception:
+            pass
+    db = VAULT / ".llm-wiki" / "zvec_db"
+    idx = 0.0
+    if db.exists():
+        for x in db.rglob("*"):
+            try:
+                if x.is_file() and x.name != "LOCK":
+                    idx = max(idx, x.stat().st_mtime)
+            except OSError:
+                pass
+    return idx, "index mtime", None
+
+
+def _iso(ts: float) -> str:
+    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else ""
+
+
+def _index_freshness(pages: dict[str, Path]) -> dict:
+    """索引是否落后于 Markdown：页面 mtime vs 上次 embed 时间 + 文档数对账。"""
+    idx_ts, source, docs = _index_stamp()
+    newer, newest = [], 0.0
+    for path in pages.values():
+        try:
+            m = path.stat().st_mtime
+        except OSError:
+            continue
+        newest = max(newest, m)
+        if idx_ts and m > idx_ts + 60:
+            newer.append(path.name)
+    stale = len(newer) >= 3 or (len(newer) >= 1 and idx_ts and (time.time() - idx_ts) > 86400)
+    missing = None
+    if isinstance(docs, int) and docs >= 0:
+        missing = len(pages) - docs
+        if missing > 0:
+            stale = True
+    return {
+        "index_updated": _iso(idx_ts),
+        "newest_page": _iso(newest),
+        "pages_not_indexed": len(newer),
+        "docs_missing": missing,
+        "stamp_source": source,
+        "stale": bool(stale),
+        "hint": ("索引落后：跑 python scripts/embed.py --incremental"
+                 if (newer or (missing or 0) > 0) else "索引与文件同步"),
+    }
+
+
 def tool_fetch(args: dict) -> dict:
     pid = (args.get("id") or "").strip().lstrip("/")
     if not pid:
@@ -149,7 +245,7 @@ def tool_fetch(args: dict) -> dict:
     mods = _mods()
     path = mods["pages"].get(pid.replace(".md", ""))
 
-    # 2) 允许显式取 raw/（未进索引，仅供追溯原文）
+    # 2) 允许显式取 raw/（原文层，按路径直达）
     if path is None and include_raw and pid.startswith("raw/"):
         cand = (VAULT / pid).with_suffix(".md") if not pid.endswith(".md") else VAULT / pid
         if cand.exists() and VAULT / "raw" in cand.parents:
@@ -162,13 +258,30 @@ def tool_fetch(args: dict) -> dict:
     fm = _frontmatter(path) if not pid.startswith("raw/") else {}
     # 字段白名单：不外发 interaction_count / intent / marketing_ratio / status
     keep = ("title", "category", "date", "source", "type")
-    return {
+    total = len(text)
+    mode = (args.get("mode") or "full").strip().lower()
+    try:
+        max_chars = int(args.get("max_chars") or 0)
+    except (TypeError, ValueError):
+        max_chars = 0
+
+    payload = {
         "id": pid,
         "path": str(path.relative_to(VAULT)).replace("\\", "/"),
         "frontmatter": {k: fm[k] for k in keep if k in fm},
-        "body": text,
-        "chars": len(text),
+        "mode": "full",
+        "total_chars": total,
     }
+    if mode == "outline":
+        body = _outline(text)
+        payload.update({"mode": "outline", "body": body, "chars": len(body),
+                        "hint": "大纲用于判断相关性；确认相关后传 mode='full' 取全文"})
+    elif max_chars > 0 and total > max_chars:
+        payload.update({"body": text[:max_chars].rstrip() + "\n\n…（已截断）",
+                        "chars": max_chars, "truncated": True})
+    else:
+        payload.update({"body": text, "chars": total})
+    return payload
 
 
 def tool_list_concepts(args: dict) -> dict:
@@ -217,17 +330,23 @@ def tool_stats(_: dict) -> dict:
     except Exception:
         pass
 
-    return {
+    fresh = _index_freshness(pages)
+    payload = {
         "vault": str(VAULT),
         "pages": len(pages),
         "index_docs": index_docs,
         "by_dir": dict(sorted(by_dir.items(), key=lambda kv: -kv[1])),
+        "index_freshness": fresh,
         "scopes": {
-            "personal": "全库（与 Hermes 侧一致，含 topics / github-stars / conversations）",
+            "personal": "全库：wiki（含 conversations）+ raw + media_output/topics；不含 github-stars（独立库）",
             "team": "仅 wiki/concepts + wiki/summaries + wiki/evergreen",
         },
-        "note": "raw/ 未进索引：搜不到原文，可用 fetch(id='raw/xxx', include_raw=true) 按路径取。",
+        "note": "raw/ 已进索引但默认不参与检索：要原话/细节传 include_raw=true，或 fetch(id='raw/…')。github-stars 不在本库，收藏项目用 ghstars。",
     }
+    if fresh["stale"]:
+        payload["warning"] = (f"索引落后 {fresh['pages_not_indexed']} 篇 / 缺 {fresh['docs_missing']} 篇"
+                              f"（更新于 {fresh['index_updated']}）——{fresh['hint']}")
+    return payload
 
 
 def tool_ask(args: dict) -> dict:
@@ -269,7 +388,8 @@ TOOLS = [
     {
         "name": "fetch",
         "description": (
-            "按 id 取单篇文档全文（Markdown 正文 + 白名单 frontmatter）。"
+            "按 id 取单篇文档（Markdown 正文 + 白名单 frontmatter）。"
+            "mode='outline' 只回「标题 + 每节首句」（约 500 字），先判相关性再取全文；max_chars 可截断。"
             "id 来自 search 结果，形如 concepts/精准定位 或 summaries/内容创作 & IP/xxx。"
             "取原始转录稿/原文时传 id='raw/子目录/文件名' 且 include_raw=true。"
         ),
@@ -277,6 +397,9 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "id": {"type": "string", "description": "页面 id 或 raw/ 相对路径"},
+                "mode": {"type": "string", "enum": ["full", "outline"],
+                         "description": "full=全文（默认）；outline=标题+每节首句，省 token"},
+                "max_chars": {"type": "integer", "description": "正文最大字符数，0 或不传=全文"},
                 "include_raw": {"type": "boolean", "description": "允许读取 raw/ 原文，默认 false"},
             },
             "required": ["id"],

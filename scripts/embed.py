@@ -269,6 +269,27 @@ def _require_deps() -> None:
         sys.exit(2)
 
 
+def _write_embed_marker(stats: dict, mode: str) -> None:
+    """记录本次索引时间：health / MCP stats 靠它判断索引是否落后（索引文件 mtime 会被只读打开刷新）。"""
+    from datetime import datetime
+    docs = None
+    try:
+        coll = get_or_create_collection()
+        docs = int(coll.stats.doc_count)
+    except Exception:
+        pass
+    payload = {"ts": time.time(), "iso": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+               "docs": docs, "mode": mode,
+               "indexed": stats.get("indexed"), "updated": stats.get("updated"),
+               "skipped": stats.get("skipped"), "errors": stats.get("errors")}
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        (DATA_DIR / "last_embed.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def main():
     # Windows 控制台默认 GBK：原文里的 emoji 会让 print 崩掉，强制 UTF-8 + replace
     try:
@@ -292,15 +313,19 @@ def main():
         return
 
     if args.rebuild:
+        empty = {"indexed": None, "updated": None, "skipped": None, "errors": 0}
         rebuild_index()
+        _write_embed_marker(empty, "rebuild")
         return
 
     if args.file:
         stats = index_single_file(args.file)
+        _write_embed_marker(stats, "file")
     else:
         pages = all_wiki_pages()
         print(f"Found {len(pages)} wiki pages")
         stats = index_pages(pages, incremental=args.incremental)
+        _write_embed_marker(stats, "incremental" if args.incremental else "full")
 
     print(f"\n✅ Indexing complete: "
           f"{stats['indexed']} new, {stats['updated']} updated, "
