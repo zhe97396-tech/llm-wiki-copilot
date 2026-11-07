@@ -157,15 +157,46 @@ _STOP_KW = {
     "已经", "一直", "总是", "其实", "比较", "非常", "特别", "有点",
 }
 
-_MIN_TITLE_IDF = 0.8    # 命中标题的那个词至少要这么稀有，才算"标题点名"
+_MIN_TITLE_REL = 0.15   # 标题点名：命中标题的词须比"最大可能稀有度"高 15%（随语料规模自适应）
 _MIN_BODY_COV = 0.40    # 正文覆盖兜底下限（标题没点名时）
 _MAX_CORE_IDF = 4.0     # 核心词在库里至少出现 ~4 次；几乎不存在的词 → 一律判没料
+_MAX_SCORE_WITH_GAP = 0.65  # 关键缺口词没覆盖时，分数封顶（只能 partial）
+_MIN_BODY_REL = 0.40    # 正文兜底：命中正文的最稀有词 ≥ 核心词 IDF 的 40% 才算数
 _GAP_MIN_IDF = 3.0      # 只把"够稀有且没出现"的词报成缺口（排除"怎么""准备"）
 
 
 def _content_keywords(keywords: list[str]) -> list[str]:
     """去掉虚词后的实义关键词。"""
     return [k for k in keywords if k and k not in _STOP_KW]
+
+
+def _norm(text: str) -> str:
+    """匹配用的归一化：小写 + 去掉所有空白。
+
+    "AI 味" 与标题里的 "AI味" 是同一个概念，但带空格的关键词永远匹配不上。
+    """
+    return re.sub(r"\s+", "", (text or "").lower())
+
+
+def _merge_keywords(query: str, texts: list[str]) -> list[str]:
+    """把相邻词拼回去，救回被 jieba 拆散的说法。
+
+    例："AI 味" → jieba 切成 "AI" + "味"（"味" 只有 1 字，会被关键词过滤器丢掉），
+    拼回 "ai味" 正好命中标题「…去AI味Skill…」；不拼就永远搜不到。
+    这里用**不做长度过滤**的分词结果来拼，否则单字永远拼不回来。
+    只保留库里真实存在的拼法（df>0），避免往证据里塞不存在的词。
+    """
+    try:
+        import jieba
+        toks = [t for t in jieba.cut(query) if t.strip() and re.search(r"\w", t)]
+    except ImportError:
+        toks = [t for t in query.split() if t.strip()]
+    out: list[str] = []
+    for a, b in zip(toks, toks[1:]):
+        cand = _norm(a + b)
+        if 3 <= len(cand) <= 8 and _df(cand, texts) > 0:
+            out.append(cand)
+    return list(dict.fromkeys(out))
 
 
 def _corpus_texts() -> list[str]:
@@ -240,7 +271,7 @@ def compute_coverage(
     if not direct:
         return (0.05, "insufficient", "expanded_only")
 
-    kws = _content_keywords(keywords)
+    kws = [k for k in keywords if k]
     if not kws:
         # 提不出关键词（极短问句）：只能看是否有直接命中
         return (0.45, "partial", "body_hit")
@@ -253,28 +284,56 @@ def compute_coverage(
     weights = _kw_weights(kws, texts)
     total = sum(weights.values()) or 1.0
 
-    titles = " ".join((r.get("title") or "") for r in direct).lower()
-    body = titles + " " + " ".join((r.get("snippet") or "") for r in direct).lower()
+    # 救回被分词拆散的说法（"AI 味" → "ai味"）。
+    # 只用于**证据探测**，不进覆盖率分母——否则没命中的合并词会把你的真证据稀释掉。
+    extras = {
+        m: _idf(m, texts)
+        for m in _merge_keywords(query, texts)
+        if m not in weights
+    }
+    probe = {**weights, **extras}
 
-    title_cov = sum(w for k, w in weights.items() if k.lower() in titles) / total
-    body_cov = sum(w for k, w in weights.items() if k.lower() in body) / total
+    titles = _norm(" ".join((r.get("title") or "") for r in direct))
+    body = titles + _norm(" ".join((r.get("snippet") or "") for r in direct))
 
-    top_word = max(weights, key=lambda k: weights[k])
-    top_idf = weights[top_word]
+    title_cov = sum(w for k, w in weights.items() if _norm(k) in titles) / total
+    body_cov = sum(w for k, w in weights.items() if _norm(k) in body) / total
 
-    # "标题点名"必须由够稀有的词完成：命中标题的最稀有词 idf >= 1.0。
-    # 否则"Kubernetes 怎么做灰度发布"会因为某篇标题里有"发布""怎么"被判成有料。
-    max_title_idf = max(
-        (w for k, w in weights.items() if k.lower() in titles), default=0.0
+    # 核心词稀有度只看你自己问出来的实义词，不能用拼出来的词——
+    # "内容做成"这种拼接碰巧在库里存在且极稀有，会把"做成产品"这种有料问题判没料。
+    core_idf = max(weights.values()) if weights else 0.0
+    max_title_idf = max(                   # 上了标题的最稀有词
+        (w for k, w in probe.items() if _norm(k) in titles), default=0.0
+    )
+    best_body_idf = max(                   # 命中正文的最稀有词
+        (w for k, w in probe.items() if _norm(k) in body), default=0.0
     )
 
-    if max_title_idf >= _MIN_TITLE_IDF:
+    # 你问的那个关键点，结果里到底有没有提到？没有就是"细节缺口"。
+    # 例：问"视频号小店保证金多少"，库里有视频号/小店话题（标题能对上），
+    # 但没有任何一页提到"保证金" → 只能判 partial，绝不能判 complete。
+    key_gaps = [
+        k for k, w in weights.items()
+        if w >= _GAP_MIN_IDF and _norm(k) not in body
+    ]
+
+    # 阈值随语料规模自适应：272 页库里 idf 上限 ≈5.6，6 页 demo 里只有 ≈1.95，
+    # 写死绝对值会让小库永远凑不够"稀有"（demo 里连页面标题都判不成点名）。
+    min_title_idf = _MIN_TITLE_REL * math.log(len(texts) + 1)
+    if max_title_idf >= min_title_idf:
         # 标题点名了：越密集越接近 1.0（0.02 → 0.61，1.0 → 1.0）
         score = 0.60 + 0.40 * min(1.0, title_cov * 1.4)
         basis = "title_hit"
-    elif body_cov >= _MIN_BODY_COV and top_idf <= _MAX_CORE_IDF:
-        # 标题换了说法，但核心词库里确实存在、正文也覆盖到了
+        if key_gaps:
+            # 有专页但没答到你问的那一点 → 封顶 partial
+            score = min(score, _MAX_SCORE_WITH_GAP)
+    elif (body_cov >= _MIN_BODY_COV
+          and core_idf <= _MAX_CORE_IDF
+          and best_body_idf >= _MIN_BODY_REL * core_idf):
+        # 标题换了说法，但命中正文的那个词本身够分量（≥ 核心词 IDF 的 40%）
         # → 中分：让调用方说"没有专页，相近的是…"
+        # 相对判据挡的是"手机屏幕碎了换屏多少钱"这类：只靠"手机""屏幕"这种
+        # 高频词蹭到正文（best_body_idf / core_idf ≈ 0.2），不能算有料。
         score = 0.45
         basis = "body_hit"
     else:
@@ -308,13 +367,10 @@ def detect_gaps(
     if not results:
         return list(keywords)
 
-    keywords = _content_keywords(keywords)
-    if not keywords:
-        return []
     texts = _corpus_texts()
     weights = _kw_weights(keywords, texts) if texts else {}
-    titles = " ".join((r.get("title") or "") for r in results).lower()
-    body = titles + " " + " ".join((r.get("snippet") or "") for r in results).lower()
+    titles = _norm(" ".join((r.get("title") or "") for r in results))
+    body = titles + _norm(" ".join((r.get("snippet") or "") for r in results))
 
     gaps = []
     for kw in keywords:
@@ -323,7 +379,7 @@ def detect_gaps(
         w = weights.get(kw, 0.0)
         if w < _GAP_MIN_IDF:
             continue          # 常见词缺失不算缺口（"怎么""准备""方法"）
-        if kw.lower() not in body:
+        if _norm(kw) not in body:
             gaps.append(kw)
     return gaps
 

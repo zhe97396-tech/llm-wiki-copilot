@@ -11,11 +11,14 @@
 
 问题集 JSON 格式：
     {"positives": ["库里确实有落点的问题", ...],
-     "negatives": ["库里明确没有的主题", ...]}
+     "negatives": ["库里明确没有的主题", ...],
+     "detail_gaps": ["库里有这个话题、但没有这个具体信息的问题", ...]}
 
 判据：
   - 负例 → 应判 insufficient；判成 complete/partial 都算**误报**（最痛的一种：
     Agent 会拿不相关页面硬凑答案，而且错得没有信号）
+  - 细节缺口 → **不许判 complete**（判 partial 是对的：库里有话题，没你要的那个数）；
+    判成 complete 算"假精度"，同样致命
   - 正例 → 应判 complete 或 partial；判 insufficient 算**漏报**
   - 二分类准确率 = (负例判没料 + 正例判有料) / 总数
 
@@ -76,12 +79,15 @@ def main() -> int:
     ap.add_argument("--quiet", action="store_true", help="不逐条打印")
     ap.add_argument("--max-false-alarm", type=int, default=None,
                     help="允许的最大误报数；超过则 exit 1（给 CI 用）")
+    ap.add_argument("--max-false-complete", type=int, default=None,
+                    help="允许的最大\"细节缺口被判够\"数；超过则 exit 1（给 CI 用）")
     args = ap.parse_args()
 
     cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
     positives = cases.get("positives") or []
     negatives = cases.get("negatives") or []
-    if not positives and not negatives:
+    detail_gaps = cases.get("detail_gaps") or []
+    if not positives and not negatives and not detail_gaps:
         print(f"问题集为空：{args.cases}", file=sys.stderr)
         return 1
 
@@ -93,17 +99,24 @@ def main() -> int:
     if not args.json:
         print("\n=== 负例 ===")
     neg_rows = run(negatives, verbose)
+    if detail_gaps and not args.json:
+        print("\n=== 细节缺口（有话题、没这个具体信息）===")
+    dg_rows = run(detail_gaps, verbose) if detail_gaps else []
 
     ps = summarize(pos_rows, want_content=True)
     ns = summarize(neg_rows, want_content=False)
+    ds = summarize(dg_rows, want_content=True) if dg_rows else None
+    false_complete = sum(1 for r in dg_rows if r["level"] == "complete")
     total = ps["n"] + ns["n"]
     acc = (ps["correct"] + ns["correct"]) / total if total else 0.0
 
     result = {
         "positives": ps,
         "negatives": ns,
+        "detail_gaps": ds,
         "binary_accuracy": round(acc, 3),
-        "false_alarm": ns["wrong"],   # 库里没有却说有（最痛）
+        "false_alarm": ns["wrong"],        # 库里没有却说有（最痛）
+        "false_complete": false_complete,  # 细节缺口却判"够了"
         "false_miss": ps["wrong"],    # 库里有却说没有
         "worst_negative": max(neg_rows, key=lambda r: r["coverage"], default=None),
     }
