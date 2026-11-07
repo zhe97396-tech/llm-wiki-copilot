@@ -14,7 +14,7 @@ jobs:
   # ── 1. 静态与结构检查：不需要 zvec / fastembed，10 秒级 ────────────────
   static:
     name: 静态检查（语法 / 切块 / 注册表）
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
