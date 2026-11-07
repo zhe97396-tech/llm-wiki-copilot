@@ -75,6 +75,9 @@ jobs:
       - name: 端到端自检（含 MCP 协议往返与回归台）
         run: python scripts/ci_check.py --data "$LLM_WIKI_DATA" --bench-cases bench/cases.example.json
 
+      - name: Ask 覆盖度回归（负例一律不许被判成"有内容"）
+        run: python scripts/bench_ask.py --cases bench/ask_cases.example.json --max-false-alarm 0
+
       - name: 索引自愈回归（删库后 --incremental 应自动全量重建）
         run: |
           mv "$LLM_WIKI_DATA/.llm-wiki/zvec_db_chunks" "$LLM_WIKI_DATA/.llm-wiki/zvec_db_chunks.bak"

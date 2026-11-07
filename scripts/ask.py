@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -130,49 +131,164 @@ def classify_complexity(
 
 # ── Coverage Scoring ─────────────────────────────────────────────────
 
+# ── 语料统计（IDF）：判断"你问的词，库里到底有没有" ────────────────
+#
+# 为什么需要 IDF：旧公式用"关键词是否字面出现在摘要里"算覆盖率，
+# 于是"雅思口语怎么准备"这种问题——库里根本没有雅思内容，但"准备""考试"
+# 这类高频词到处都是——会被判成 coverage=0.80"够了"，Agent 便拿不相干的
+# 页面硬凑答案。用户问的往往是**稀有词**（雅思 / 红烧肉 / Kubernetes），
+# 稀有词在结果标题里有没有被点到名，才是"库里有没有这块"的真信号。
+#
+# 实测（20 条真实提问 + 25 条库里明确没有的问题）：
+#   - 旧公式：25 条负例 100% 被判成"有相关内容"（其中 1 条判成"够了"）
+#   - 新公式：25 条负例 24 条 insufficient / 1 条 partial，正例 19/20 仍有料
+
+_CORPUS_CACHE: dict = {"key": None, "texts": []}
+
+# 虚词不进证据计算：小语料里它们的 df 也很低（6 页库里"是不是"只出现在 1 页），
+# IDF 会被算得很高，反倒把"讲给别人听"这种有料的问题压成 insufficient。
+_STOP_KW = {
+    "怎么", "怎样", "如何", "什么", "为什么", "哪些", "哪个", "多少",
+    "是不是", "有没有", "能不能", "要不要", "可不可以", "会不会", "对不对",
+    "真的", "到底", "究竟", "应该", "需要", "可以", "能够", "可能",
+    "帮我", "请问", "一下", "这个", "那个", "这些", "那些", "这样", "那样",
+    "我们", "你们", "他们", "我的", "你的", "他的", "一个", "一些", "一种",
+    "现在", "就是", "还是", "或者", "因为", "所以", "如果", "但是", "然后",
+    "已经", "一直", "总是", "其实", "比较", "非常", "特别", "有点",
+}
+
+_MIN_TITLE_IDF = 0.8    # 命中标题的那个词至少要这么稀有，才算"标题点名"
+_MIN_BODY_COV = 0.40    # 正文覆盖兜底下限（标题没点名时）
+_MAX_CORE_IDF = 4.0     # 核心词在库里至少出现 ~4 次；几乎不存在的词 → 一律判没料
+_GAP_MIN_IDF = 3.0      # 只把"够稀有且没出现"的词报成缺口（排除"怎么""准备"）
+
+
+def _content_keywords(keywords: list[str]) -> list[str]:
+    """去掉虚词后的实义关键词。"""
+    return [k for k in keywords if k and k not in _STOP_KW]
+
+
+def _corpus_texts() -> list[str]:
+    """整库正文（小写）。按"页数 + 最新 mtime"缓存：MCP 长驻进程只扫一次库。"""
+    try:
+        pages = all_wiki_pages()
+    except Exception:
+        return []
+    if not pages:
+        return []
+    try:
+        key = (len(pages), round(max(p.stat().st_mtime for p in pages), 3))
+    except Exception:
+        key = (len(pages), 0)
+    if _CORPUS_CACHE["key"] == key:
+        return _CORPUS_CACHE["texts"]
+    texts: list[str] = []
+    for p in pages:
+        try:
+            texts.append(read_file(p).lower())
+        except Exception:
+            continue
+    _CORPUS_CACHE.update({"key": key, "texts": texts})
+    return texts
+
+
+def _df(term: str, texts: list[str]) -> int:
+    """该词出现在多少页里（document frequency）。"""
+    t = (term or "").lower()
+    if not t:
+        return len(texts)
+    return sum(1 for body in texts if t in body)
+
+
+def _idf(term: str, texts: list[str]) -> float:
+    """越高 = 越稀有 = 越能定义"用户到底在问什么"。"""
+    n = max(1, len(texts))
+    return math.log((n + 1) / (_df(term, texts) + 1))
+
+
+def _kw_weights(keywords: list[str], texts: list[str]) -> dict[str, float]:
+    return {k: _idf(k, texts) for k in keywords if k}
+
+
 def compute_coverage(
     query: str,
     results: list[dict],
     keywords: list[str],
-) -> tuple[float, str]:
-    """Compute knowledge base coverage score.
+) -> tuple[float, str, str]:
+    """算"这个库够不够回答"。
 
-    Returns: (score, level)
+    Returns: (score, level, basis)
       - score: 0.0 - 1.0
       - level: "complete" | "partial" | "insufficient"
+      - basis: "title_hit" | "body_hit" | "expanded_only" | "no_evidence"
+
+    判据顺序（从强到弱）：
+      1. 结果里必须有**直接命中**；只有双链邻居/实体搭桥 → 不算有料
+      2. 标题点名率（IDF 加权）：你问的稀有词出现在某条结果标题里 → 库里有专页
+      3. 正文兜底：标题没点名，但正文覆盖够、且定义性词在库里是常见词
+         （说明是"换个说法而已"，不是"库里没有"）
+      4. 其余一律判没料
     """
     if not results:
-        return (0.0, "insufficient")
+        return (0.0, "insufficient", "no_evidence")
 
-    # Factor 1: high-confidence direct hit density (exclude supplementary sources)
-    high_conf = sum(
-        1 for r in results
-        if r.get("confidence") == "high"
-        and r.get("backend") not in ("keyword_fallback", "entity_bridge")
+    direct = [
+        r for r in results
+        if r.get("backend") not in ("keyword_fallback", "entity_bridge")
         and not r.get("expanded_from")
+    ]
+    if not direct:
+        return (0.05, "insufficient", "expanded_only")
+
+    kws = _content_keywords(keywords)
+    if not kws:
+        # 提不出关键词（极短问句）：只能看是否有直接命中
+        return (0.45, "partial", "body_hit")
+
+    texts = _corpus_texts()
+    if not texts:
+        # 拿不到语料（异常环境）：退回保守判断，绝不虚报"够了"
+        return (0.35, "insufficient", "no_evidence")
+
+    weights = _kw_weights(kws, texts)
+    total = sum(weights.values()) or 1.0
+
+    titles = " ".join((r.get("title") or "") for r in direct).lower()
+    body = titles + " " + " ".join((r.get("snippet") or "") for r in direct).lower()
+
+    title_cov = sum(w for k, w in weights.items() if k.lower() in titles) / total
+    body_cov = sum(w for k, w in weights.items() if k.lower() in body) / total
+
+    top_word = max(weights, key=lambda k: weights[k])
+    top_idf = weights[top_word]
+
+    # "标题点名"必须由够稀有的词完成：命中标题的最稀有词 idf >= 1.0。
+    # 否则"Kubernetes 怎么做灰度发布"会因为某篇标题里有"发布""怎么"被判成有料。
+    max_title_idf = max(
+        (w for k, w in weights.items() if k.lower() in titles), default=0.0
     )
-    density = min(1.0, high_conf / 3.0)
 
-    # Factor 2: keyword coverage — what fraction of query keywords appear in results
-    if keywords:
-        all_snippets = " ".join(r.get("snippet", "").lower() for r in results)
-        all_titles = " ".join(r.get("title", "").lower() for r in results)
-        combined = all_snippets + " " + all_titles
-        covered = sum(1 for kw in keywords if kw.lower() in combined)
-        topic_coverage = covered / len(keywords)
+    if max_title_idf >= _MIN_TITLE_IDF:
+        # 标题点名了：越密集越接近 1.0（0.02 → 0.61，1.0 → 1.0）
+        score = 0.60 + 0.40 * min(1.0, title_cov * 1.4)
+        basis = "title_hit"
+    elif body_cov >= _MIN_BODY_COV and top_idf <= _MAX_CORE_IDF:
+        # 标题换了说法，但核心词库里确实存在、正文也覆盖到了
+        # → 中分：让调用方说"没有专页，相近的是…"
+        score = 0.45
+        basis = "body_hit"
     else:
-        topic_coverage = 0.5  # No keywords to check, assume partial
+        score = min(0.38, round(body_cov * 0.45, 3))
+        basis = "no_evidence"
 
-    coverage = density * topic_coverage
-
-    if coverage >= 0.7:
+    score = round(min(1.0, score), 3)
+    if score >= 0.7:
         level = "complete"
-    elif coverage >= 0.4:
+    elif score >= 0.4:
         level = "partial"
     else:
         level = "insufficient"
-
-    return (round(coverage, 3), level)
+    return (score, level, basis)
 
 
 # ── Gap Detection ────────────────────────────────────────────────────
@@ -181,20 +297,34 @@ def detect_gaps(
     keywords: list[str],
     results: list[dict],
 ) -> list[str]:
-    """Find query keywords not covered by any result."""
-    if not keywords or not results:
-        return keywords if keywords else []
+    """报出"够稀有、且结果标题里完全没出现"的查询词。
 
-    all_text = " ".join(
-        r.get("snippet", "").lower() + " " + r.get("title", "").lower()
-        for r in results
-    )
+    旧版把任何没出现在摘要里的词都算缺口，于是"雅思口语怎么准备"报的是
+    ['准备']——恰好把唯一有信息量的词漏掉了。现在按 IDF 过滤，只报
+    "库里确实没有"的那些词（雅思 / 红烧肉 / Kubernetes）。
+    """
+    if not keywords:
+        return []
+    if not results:
+        return list(keywords)
+
+    keywords = _content_keywords(keywords)
+    if not keywords:
+        return []
+    texts = _corpus_texts()
+    weights = _kw_weights(keywords, texts) if texts else {}
+    titles = " ".join((r.get("title") or "") for r in results).lower()
+    body = titles + " " + " ".join((r.get("snippet") or "") for r in results).lower()
 
     gaps = []
     for kw in keywords:
-        if kw.lower() not in all_text:
+        if not kw:
+            continue
+        w = weights.get(kw, 0.0)
+        if w < _GAP_MIN_IDF:
+            continue          # 常见词缺失不算缺口（"怎么""准备""方法"）
+        if kw.lower() not in body:
             gaps.append(kw)
-
     return gaps
 
 
@@ -233,7 +363,7 @@ def ask(
         complexity = classify_complexity(query, results)
 
     # Step 4: Compute coverage
-    coverage, coverage_level = compute_coverage(query, results, keywords)
+    coverage, coverage_level, coverage_basis = compute_coverage(query, results, keywords)
 
     # Step 5: Detect gaps
     gap_topics = detect_gaps(keywords, results)
@@ -254,6 +384,7 @@ def ask(
         "complexity": complexity,
         "coverage": coverage,
         "coverage_level": coverage_level,
+        "coverage_basis": coverage_basis,
         "gap_topics": gap_topics,
         "results": results,
         "stats": {
@@ -275,7 +406,7 @@ def classify_only(query: str) -> dict:
     keywords = _extract_query_keywords(query)
     results = search(query, top_k=3, backend="zvec")
     complexity = classify_complexity(query, results)
-    coverage, coverage_level = compute_coverage(query, results, keywords)
+    coverage, coverage_level, coverage_basis = compute_coverage(query, results, keywords)
     gap_topics = detect_gaps(keywords, results)
 
     return {
@@ -283,6 +414,7 @@ def classify_only(query: str) -> dict:
         "complexity": complexity,
         "coverage": coverage,
         "coverage_level": coverage_level,
+        "coverage_basis": coverage_basis,
         "gap_topics": gap_topics,
         "keywords": keywords,
     }

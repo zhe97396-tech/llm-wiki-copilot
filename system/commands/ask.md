@@ -15,7 +15,12 @@ category: retrieval
    执行 `PYTHONPATH="" .venv/Scripts/python.exe scripts/ask.py "用户问题"`，获取结构化分析结果：
    - `complexity`：simple / complex / comparative
    - `coverage` + `coverage_level`：知识库覆盖度（complete / partial / insufficient）
-   - `gap_topics`：缺口主题词
+   - `coverage_basis`：判定依据（title_hit / body_hit / expanded_only / no_evidence）——用来自解释"为什么判够/不够"
+   - `gap_topics`：缺口主题词（只报 IDF 够高且确实没出现的词）
+
+   > `coverage` 判的是**"这个库够不够回答"**，不是检索质量。`complete` = 你问的核心词上了某条结果标题（库里有专页）；
+   > `partial` = 没有专页但有相关内容，回答时要说"最接近的是 X"；`insufficient` = 库里没有这块，
+   > **不要拿不相关页面硬凑**，直说没有。
    - `results`：检索结果（已含confidence标签、已按score排序）
    - `stats`：命中数、高信数、目录分布、概念页列表
 
@@ -42,11 +47,11 @@ category: retrieval
    - 标注引用来源
 
 3. **缺口处理**：
-   - `coverage_level` = "insufficient" → 主动问用户：
+   - `coverage_level` = "insufficient" → 直说"知识库没有这块"，并主动问用户：
      "这部分知识库内容不够覆盖，要不要我去网上搜一下补充？"
    - 用户同意 → 建议使用 `#research [缺口主题]` 补充
    - 用户不需要 → 标注缺口，继续回答
-   - `coverage_level` = "partial" → 在回答末尾标注缺口，不主动建议搜索
+   - `coverage_level` = "partial" → 说清"库里没有专页，最接近的是 X"，末尾标注缺口，不主动建议搜索
 
 4. **未收录处理**：
    如果检索结果为空，明确回答"知识库中未收录此内容"，
