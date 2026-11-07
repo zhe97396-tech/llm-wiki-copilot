@@ -24,8 +24,7 @@ jobs:
 
       - name: 自检（未建索引的部分）
         env:
-          LLM_WIKI_DATA: ${{ runner.temp }}/vault
-          PYTHONUTF8: "1"
+          LLM_WIKI_DATA: ${{ github.workspace }}/.ci-vault
         run: |
           mkdir -p "$LLM_WIKI_DATA"
           PYTHONPATH="" python scripts/ci_check.py
@@ -36,7 +35,8 @@ jobs:
     runs-on: ubuntu-22.04
     needs: static
     env:
-      LLM_WIKI_DATA: ${{ runner.temp }}/vault
+      # runner.* 在 job 级 env 里不可用（只允许 github / vars / inputs），所以用 workspace 拼
+      LLM_WIKI_DATA: ${{ github.workspace }}/.ci-vault
       PYTHONUTF8: "1"
       PYTHONPATH: ""
     steps:
@@ -57,7 +57,7 @@ jobs:
       - name: 缓存 fastembed 模型（241MB，避免每次重新下载）
         uses: actions/cache@v4
         with:
-          path: ${{ env.LLM_WIKI_DATA }}/.llm-wiki/fastembed_cache
+          path: ${{ github.workspace }}/.ci-vault/.llm-wiki/fastembed_cache
           key: fastembed-paraphrase-multilingual-MiniLM-L12-v2-v1
 
       - name: 准备 demo 语料

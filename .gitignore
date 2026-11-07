@@ -44,3 +44,6 @@ integrations/_third_party/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# CI 临时数据目录
+.ci-vault/
