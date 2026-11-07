@@ -240,10 +240,44 @@ python scripts/build_adapters.py
 
 除了指令包，还可以用 **MCP** 把知识库直接挂进任意支持 MCP 的 Agent
 （Claude Code / Cursor / Codex / Cline / Hermes）。挂上之后 Agent 不必先 `#search`，
-直接调用 `search` / `fetch` / `list_concepts` / `stats` / `ask` 五个只读工具。
+直接调用 `search` / `fetch` / `related` / `list_concepts` / `stats` / `ask` 六个只读工具。
 
 stdio 传输：无端口、无守护进程、无鉴权，客户端退出进程就消失。配置与自测见
 [`integrations/mcp/README.md`](integrations/mcp/README.md)。
+
+---
+
+## 检索是怎么工作的（v0.2.0）
+
+检索效果不好，通常不是"模型不够强"，而是三件小事没做：
+
+**1）两套索引，而不是一套。**
+整页压一个向量时，长文里"某一节的精准证据"会被整篇稀释——你明明写了，Agent 却搜不到。
+所以除了整页索引（`.llm-wiki/zvec_db/`），还有一个按 H2/H3 切块的索引（`.llm-wiki/zvec_db_chunks/`），
+块文本前面拼上 `页面标题 > 小节名` 当作最廉价的上下文替代。检索时两路结果用 RRF 相加
+（两边 `rank_constant` 相同，分数尺度一致，可直接相加）。两块索引物理隔离，任一出问题不影响另一个。
+
+> 实测：在同一套 20 条真实提问上，只加这一层，hit@1 从 35% → 55%，hit@3 75% → 80%。
+
+**2）页面里写"同义词入口"，让外行词能搜到内行词。**
+页面标题往往是内行词（"复利效应""记录摩擦力"），而提问是外行词（"越滚越大""总是坚持不下去"）。
+编译规则要求在正文开头写一行 `> **同义词**：…`，这行同时被全文索引和块向量吃到。
+
+> 实测：5 个页面补了同义词入口后，hit@1 55% → 65%，hit@3 80% → 95%。
+
+**3）用真实提问做回归，而不是用标题搜自己。**
+`scripts/bench_search.py` 读一个问题集 JSON，输出 hit@1 / hit@3 / MRR：
+
+```bash
+cp bench/cases.example.json my-cases.json     # 填你自己的 15-20 条真实提问
+PYTHONPATH="" .venv/Scripts/python.exe scripts/bench_search.py --cases my-cases.json
+```
+
+改检索逻辑（权重、分块、过滤）前，先跑一遍基线；改完再跑。指标不动而覆盖变好也可以接受，
+但**绝不要**用"感觉更准了"当结论。
+
+**同步索引**：`#ingest` 会跑 `embed.py` + `embed_chunks.py`；手动改过页面时，两条都要补跑，
+否则新内容只在整页层面可搜、小节级定位不到。体检用 `scripts/health.py --check zvec_chunks`。
 
 ## 采集：把链接发给它就够了
 

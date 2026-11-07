@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import gc
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -114,8 +115,11 @@ KEYWORD_MIN_LEN = 2              # Minimum keyword length after jieba cut
 # ── P3: Diversity Control ─────────────────────────────────────────────
 # Prevents search results from being dominated by a single directory/topic.
 
-DIVERSITY_MAX_SAME_DIR = 2       # Max results from the same directory
-DIVERSITY_PENALTY = 0.5          # Score multiplier for excess same-dir results
+# 2026-11-07：原为 (2, 0.5)。同目录第 3 篇起打半折会把「一个方向多篇」的兄弟页压到
+# 无关页后面（实测同一 query top20 的相关条数 7 → 11）。四组参数在问句回归集上
+# hit@1/hit@3/MRR 完全一致（去重只作用于深层排名），故放宽到 4/0.8。
+DIVERSITY_MAX_SAME_DIR = 4       # Max results from the same directory
+DIVERSITY_PENALTY = 0.8          # Score multiplier for excess same-dir results
 
 
 # ── Zvec Hybrid Search ────────────────────────────────────────────────
@@ -195,6 +199,14 @@ def zvec_search(query: str, top_k: int = 5, exclude_types: set[str] | None = Non
     if mapped:
         mapped = _expand_with_entity_bridge(mapped, top_k=top_k + 5, exclude_types=exclude_types)
 
+    # Step 5.5 (2026-11-07): 分块召回 + RRF 加法融合（分块索引缺失/报错时自动跳过）
+    if mapped:
+        mapped = _fuse_chunk_retrieval(query, q_vec, mapped, top_k=top_k, exclude_types=exclude_types)
+
+    # Step 5.5 (2026-11-07): 分块召回 + RRF 加法融合（分块索引缺失/报错时自动跳过）
+    if mapped:
+        mapped = _fuse_chunk_retrieval(query, q_vec, mapped, top_k=top_k, exclude_types=exclude_types)
+
     # Step 6 (P1): Keyword fallback — supplement if direct hits are weak
     # Check direct hit scores (not expanded results, which have inflated scores)
     direct_hit_scores = [r["score"] for r in mapped if not r.get("expanded_from")]
@@ -218,6 +230,142 @@ def zvec_search(query: str, top_k: int = 5, exclude_types: set[str] | None = Non
     result = _apply_confidence_labels(result)
 
     return result
+
+
+# ── Chunk-level retrieval fusion (2026-11-07) ─────────────────────────
+# 背景：整页一个向量会把"某一节的精准证据"稀释掉（实测同一模型下
+# 整页向量 vs 分块向量）。所以新增一个分块索引作为**第二召回源**，
+# 用 RRF 加法融合进现有链路——不替换整页索引、不动双链与实体搭桥。
+# 关闭：env LLM_WIKI_CHUNK_SEARCH=off（分块索引缺失时也会自动静默跳过）。
+
+CHUNK_FUSE_WEIGHT = 1.0     # 分块召回的权重（1.0 = 与整页 RRF 等权）
+
+
+def _chunk_search_enabled() -> bool:
+    v = os.environ.get("LLM_WIKI_CHUNK_SEARCH", "").strip().lower()
+    if v in ("0", "off", "false", "no"):
+        return False
+    if v in ("1", "on", "true", "yes"):
+        return True
+    return True
+
+
+def _chunk_page_scores(query: str, q_vec: list[float],
+                       exclude_types: set[str] | None = None) -> dict[str, dict]:
+    """分块索引上做一次 FTS+向量混合检索，按页面取最佳块。
+
+    返回 {page_id: {score, heading, text, page_type, source_path, title}}；失败返回 {}。
+    """
+    if not _chunk_search_enabled():
+        return {}
+    try:
+        from zvec_chunk_config import (
+            get_or_create_chunk_collection, reset_chunk_collection, chunk_index_available,
+            CHUNK_FETCH_TOPK,
+            FIELD_PAGE_ID, FIELD_CONTENT, FIELD_HEADING, FIELD_TYPE, FIELD_SOURCE_PATH, VECTOR_FIELD,
+        )
+        if not chunk_index_available():
+            return {}
+        import zvec  # noqa: F401
+        from zvec.model.param.query import Fts, Query
+        from zvec.extension.multi_vector_reranker import RrfReRanker
+
+        coll = get_or_create_chunk_collection()
+        if coll is None:
+            return {}
+        try:
+            res = coll.query(
+                queries=[
+                    Query(field_name=FIELD_CONTENT, fts=Fts(match_string=query)),
+                    Query(field_name=VECTOR_FIELD, vector=q_vec),
+                ],
+                topk=CHUNK_FETCH_TOPK,
+                reranker=RrfReRanker(rank_constant=RRF_RANK_CONSTANT),
+            )
+        finally:
+            reset_chunk_collection()   # 让出 Zvec 跨进程锁（与整页索引互不影响）
+    except Exception as exc:  # 分块链路任何问题都不许影响主检索
+        print(f"[search] 分块检索跳过（{type(exc).__name__}: {exc}）", file=sys.stderr)
+        return {}
+
+    exclude = exclude_types or set()
+    best: dict[str, dict] = {}
+    for r in res:
+        ptype = r.fields.get(FIELD_TYPE, "source")
+        if ptype in exclude:
+            continue
+        pid = r.fields.get(FIELD_PAGE_ID, "")
+        if not pid:
+            continue
+        score = float(r.score)
+        cur = best.get(pid)
+        if cur is not None and cur["score"] >= score:
+            continue
+        heading = r.fields.get(FIELD_HEADING, "") or ""
+        best[pid] = {
+            "score": score,
+            "heading": heading,
+            "text": r.fields.get(FIELD_CONTENT, "") or "",
+            "page_type": ptype,
+            "source_path": r.fields.get(FIELD_SOURCE_PATH, "") or "",
+            "title": heading.split(" > ")[0] if heading else "",
+        }
+    return best
+
+
+def _fuse_chunk_retrieval(query: str, q_vec: list[float], mapped: list[dict],
+                          top_k: int = 5,
+                          exclude_types: set[str] | None = None) -> list[dict]:
+    """把分块召回融合进整页结果（RRF 加法）。
+
+    - 两边得分同尺度（都是 rank_constant=60 的 RRF），所以相加即融合：
+      同时被整页和分块命中的页面排名上升 → 这正是"对题但排第 2/3"想修的情况
+    - 只被分块命中的页面以块分进场（同一尺度），并直接用命中段落当 snippet
+    - 被分块命中但整页未命中的页面不读全文，只保留块信息（省 IO）
+    """
+    chunk_hits = _chunk_page_scores(query, q_vec, exclude_types=exclude_types)
+    if not chunk_hits:
+        return mapped
+
+    existing = {item.get("page_id"): item for item in mapped}
+    exclude = exclude_types or set()
+
+    # 1) 已存在的直接命中：加上块分，并把 snippet 换成命中段落
+    for pid, hit in chunk_hits.items():
+        item = existing.get(pid)
+        if item is None or item.get("expanded_from"):
+            continue
+        item["score"] = round(float(item.get("score") or 0.0) + CHUNK_FUSE_WEIGHT * hit["score"], 4)
+        item["chunk_hit"] = True
+        item["chunk_heading"] = hit["heading"]
+        snippet = hit["text"].replace("\n", " ").strip()
+        item["snippet"] = snippet[:SNIPPET_MAX_LEN] + ("..." if len(snippet) > SNIPPET_MAX_LEN else "")
+
+    # 2) 只被分块命中的页面：补进结果（同尺度分数）
+    for pid, hit in chunk_hits.items():
+        if pid in existing:
+            continue
+        if hit["page_type"] in exclude:
+            continue
+        path = DATA_ROOT / hit["source_path"] if hit["source_path"] else None
+        if path is None or not path.exists():
+            continue
+        snippet = hit["text"].replace("\n", " ").strip()
+        mapped.append({
+            "path": hit["source_path"],
+            "title": hit["title"] or page_name(path),
+            "score": round(CHUNK_FUSE_WEIGHT * hit["score"], 4),
+            "snippet": snippet[:SNIPPET_MAX_LEN] + ("..." if len(snippet) > SNIPPET_MAX_LEN else ""),
+            "type": hit["page_type"],
+            "page_id": pid,
+            "neighbors": [],
+            "backend": "zvec_chunk",
+            "chunk_hit": True,
+            "chunk_heading": hit["heading"],
+        })
+
+    mapped.sort(key=rank_key)
+    return mapped
 
 
 # ── P0: Soft Segmentation ────────────────────────────────────────────

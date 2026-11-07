@@ -642,6 +642,71 @@ def check_zvec_freshness(pages: list[Path]) -> list[dict]:
              "message": f"索引新鲜（{source} · 更新于 {stamp}，{len(newer)} 篇待索引，共 {len(pages)} 篇）"}]
 
 
+def check_zvec_chunks(pages: list[Path] | None = None) -> list[dict]:
+    """分块索引新鲜度（2026-11-07 新增）。
+
+    补的是个真盲区：整页索引有 ghost / freshness / orphans 三道闸，分块索引此前**零检查**。
+    `#ingest` 漏跑 `embed_chunks.py` 时一切看起来正常——检索照常工作，只是
+    「某一节的精准证据」召回不到（实测 hit@1 从 65% 掉回 55%），而且没有任何报错。
+
+    纯 Python 切块比对（不嵌入、不需要 zvec），本库 272 页约 1-2 秒。
+    """
+    try:
+        from zvec_chunk_config import (
+            CHUNK_CACHE_FILE, chunk_index_available, split_page, MIN_CHUNK_CHARS,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return [{"check": "zvec_chunks", "severity": "info", "path": "",
+                 "message": f"分块索引模块不可用（{exc}）——跳过"}]
+
+    if not chunk_index_available():
+        return [{"check": "zvec_chunks", "severity": "info", "path": "",
+                 "message": "分块索引未建立：检索仍可用，但小节级召回缺失（hit@1 约 -10pt）。"
+                            "跑 scripts/embed_chunks.py --rebuild"}]
+
+    try:
+        cache = json.loads(CHUNK_CACHE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        cache = {}
+
+    import hashlib
+
+    expected: dict[str, str] = {}
+    for p in (pages or all_wiki_pages()):
+        if "github-stars" in p.parts or p.name in ("index.md", "overview.md"):
+            continue
+        try:
+            content = read_file(p)
+        except Exception:
+            continue
+        body = strip_frontmatter(content)
+        if len(body) < MIN_CHUNK_CHARS:
+            continue
+        title = extract_frontmatter_field(content, "title") or page_name(p)
+        pid = page_id(p)
+        for idx, (_heading, text) in enumerate(split_page(title, body)):
+            expected[f"{pid}#{idx}"] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    missing = [k for k in expected if k not in cache]
+    gone = [k for k in cache if k not in expected]
+    changed = [k for k in expected if k in cache and cache[k] != expected[k]]
+
+    if missing or gone or changed:
+        parts = []
+        if missing:
+            parts.append(f"{len(missing)} 块未索引")
+        if changed:
+            parts.append(f"{len(changed)} 块内容已变")
+        if gone:
+            parts.append(f"{len(gone)} 块已消失未清理")
+        return [{"check": "zvec_chunks", "severity": "warning", "path": "",
+                 "message": f"分块索引落后：{'、'.join(parts)}（磁盘应 {len(expected)} 块 / 索引记录 {len(cache)} 块）"
+                            "——跑 scripts/embed_chunks.py --incremental"}]
+
+    return [{"check": "zvec_chunks", "severity": "info", "path": "",
+             "message": f"分块索引新鲜（{len(expected)} 块，逐块哈希一致）"}]
+
+
 CHECK_FUNCTIONS = {
     "empty_stub": lambda pages: check_empty_files(pages),
     "index_sync": lambda pages: check_index_sync(pages),
@@ -652,6 +717,7 @@ CHECK_FUNCTIONS = {
     "entity_index": lambda pages: check_entity_index(),  # entity index consistency
     "zvec_ghost": lambda pages: check_zvec_ghosts(),  # zvec ghost index check
     "zvec_freshness": lambda pages: check_zvec_freshness(pages),  # 索引是否落后于文件
+    "zvec_chunks": lambda pages: check_zvec_chunks(pages),  # 分块索引是否落后（2026-11-07）
 }
 
 
@@ -702,6 +768,14 @@ def run_health_check(
     # 例外同上（--check zvec_ghost）
     if only_check != "zvec_ghost":
         all_issues.extend(check_zvec_ghosts())
+
+    # Zvec 索引新鲜度（索引是否落后于 Markdown）
+    if only_check != "zvec_freshness":
+        all_issues.extend(check_zvec_freshness(pages))
+
+    # 分块索引是否落后（漏跑 embed_chunks 时不会报错，只会让小节级召回变差）
+    if only_check != "zvec_chunks":
+        all_issues.extend(check_zvec_chunks(pages))
 
     # Summary
     errors = sum(1 for i in all_issues if i["severity"] == "error")
