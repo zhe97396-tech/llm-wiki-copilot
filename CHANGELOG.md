@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.2.1 — 2026-11-07
+
+加了一层"改完检索到底有没有坏"的护栏。
+
+### 新增
+
+- **`scripts/ci_check.py`**：一条命令做 7 类自检
+  1. 全量语法编译（`scripts/` + `integrations/mcp/`）
+  2. 分块模块可导入、`split_page` 在合成页面上确实切出多块且带 `页面 > 小节` 前缀
+  3. `search.py` 结构（融合函数存在、目录去重参数没被改回 2/0.5）
+  4. MCP 暴露 6 个工具且 `related` 已注册
+  5. 分块索引逐块哈希新鲜
+  6. 真实 MCP 协议往返（`search` 有结果、`related` 有兄弟页）
+  7. 回归台 hit@3 不低于阈值（默认 50%）
+- **GitHub Actions（`.github/workflows/ci.yml`）**：两个 job
+  - `static`：不装 zvec / fastembed，10 秒内完成语法与注册表检查
+  - `retrieval`：Ubuntu 22.04 装 `zvec==0.5.1` + fastembed，用 `demo/` 语料真跑
+    embed → embed_chunks → entity_index → 自检 → **索引自愈回归**（删库后 `--incremental` 必须自动全量重建）
+    → 关闭分块后的降级路径（`LLM_WIKI_CHUNK_SEARCH=off` 不得报错）
+  - fastembed 模型（241MB）走 actions/cache，避免每次下载
+
+### 说明
+
+- 本地也能跑同一条命令：`PYTHONPATH="" python scripts/ci_check.py --data <知识库> --bench-cases my-cases.json`
+- 回归台阈值默认 50% 是**防明显退化**，不是质量标准；请不要为了让 CI 变绿而调低它
+
+---
+
 ## v0.2.0 — 2026-11-07
 
 检索层重写。这一版的核心结论：**检索不准，多半不是模型不够强，而是"整页一个向量"这个结构本身在稀释证据。**

@@ -7,6 +7,8 @@
 
 **让你的 AI Agent 把碎片内容编译成可调用的知识体系。**
 
+[![CI](https://github.com/zhe97396-tech/llm-wiki-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/zhe97396-tech/llm-wiki-copilot/actions/workflows/ci.yml)
+
 本地运行 · 纯 Markdown · 索引全在本地 · 零 API 也能检索 · 数据永远是你自己的
 
 ---

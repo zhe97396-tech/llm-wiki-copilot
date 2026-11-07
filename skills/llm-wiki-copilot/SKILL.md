@@ -1,7 +1,7 @@
 ---
 name: llm-wiki-copilot
 description: "Use when the user triggers #ingest / #search / #ask / #start / #distill / #bridge / #lint / #evergreen / #research / #stars / #index / #archive, or references a local LLM Wiki / 知识副驾 knowledge base. 12 commands driving a local-first knowledge pipeline (compile → retrieve → read-along → distill) with zero-API RAG."
-version: 0.2.0
+version: 0.2.1
 license: MIT
 metadata:
   tags: [knowledge-base, rag, markdown, local-first, obsidian]

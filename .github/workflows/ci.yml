@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. 静态与结构检查：不需要 zvec / fastembed，10 秒级 ────────────────
+  static:
+    name: 静态检查（语法 / 切块 / 注册表）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 自检（未建索引的部分）
+        env:
+          LLM_WIKI_DATA: ${{ runner.temp }}/vault
+          PYTHONUTF8: "1"
+        run: |
+          mkdir -p "$LLM_WIKI_DATA"
+          PYTHONPATH="" python scripts/ci_check.py
+
+  # ── 2. 端到端检索检查：装 zvec + fastembed，用 demo 语料真跑一遍 ────────
+  retrieval:
+    name: 端到端检索（embed → 分块 → search → related → bench）
+    runs-on: ubuntu-22.04
+    needs: static
+    env:
+      LLM_WIKI_DATA: ${{ runner.temp }}/vault
+      PYTHONUTF8: "1"
+      PYTHONPATH: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: 安装检索依赖（不装 markitdown / ghstars 等编译期依赖）
+        run: |
+          python -m pip install --upgrade pip
+          # 固定到项目验证过的版本：0.8.0 移除了 jieba 全局词典配置，与现有规则不兼容
+          pip install "zvec==0.5.1" "fastembed>=0.8.0" "jieba>=0.42.1" "numpy>=1.24" "PyYAML>=6.0"
+
+      - name: 缓存 fastembed 模型（241MB，避免每次重新下载）
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.LLM_WIKI_DATA }}/.llm-wiki/fastembed_cache
+          key: fastembed-paraphrase-multilingual-MiniLM-L12-v2-v1
+
+      - name: 准备 demo 语料
+        run: |
+          mkdir -p "$LLM_WIKI_DATA"
+          cp -r demo/wiki "$LLM_WIKI_DATA/wiki"
+          ls "$LLM_WIKI_DATA/wiki"
+
+      - name: 建三份索引（整页 / 分块 / 实体）
+        run: |
+          python scripts/embed.py --rebuild
+          python scripts/embed_chunks.py --rebuild
+          python scripts/entity_index.py --rebuild
+
+      - name: 端到端自检（含 MCP 协议往返与回归台）
+        run: python scripts/ci_check.py --data "$LLM_WIKI_DATA" --bench-cases bench/cases.example.json
+
+      - name: 索引自愈回归（删库后 --incremental 应自动全量重建）
+        run: |
+          mv "$LLM_WIKI_DATA/.llm-wiki/zvec_db_chunks" "$LLM_WIKI_DATA/.llm-wiki/zvec_db_chunks.bak"
+          python scripts/embed_chunks.py --incremental | tee /tmp/heal.log
+          grep -q "改为全量重建" /tmp/heal.log || { echo "自愈分支未触发"; exit 1; }
+          rm -rf "$LLM_WIKI_DATA/.llm-wiki/zvec_db_chunks.bak"
+
+      - name: 关闭分块后的降级路径（LLM_WIKI_CHUNK_SEARCH=off 不应报错）
+        env:
+          LLM_WIKI_CHUNK_SEARCH: "off"
+        run: |
+          python scripts/search.py "记住学过的东西" --top 2
+          python scripts/health.py --check zvec_freshness
